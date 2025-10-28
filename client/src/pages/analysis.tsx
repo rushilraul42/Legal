@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,36 +15,14 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { JudgmentAnalysis } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { getMockJudgmentAnalysis } from "@/lib/mock-data";
 
 export default function Analysis() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [analysis, setAnalysis] = useState<JudgmentAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
-
-  const analyzeMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append("document", file);
-      const response = await apiRequest<JudgmentAnalysis>("POST", "/api/analyze-judgment", formData);
-      return response;
-    },
-    onSuccess: (data) => {
-      setAnalysis(data);
-      toast({
-        title: "Analysis Complete",
-        description: "Your judgment has been analyzed successfully.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Analysis Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -82,9 +59,19 @@ export default function Analysis() {
     }
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (selectedFile) {
-      analyzeMutation.mutate(selectedFile);
+      setIsAnalyzing(true);
+      
+      setTimeout(() => {
+        const mockAnalysis = getMockJudgmentAnalysis(selectedFile.name);
+        setAnalysis(mockAnalysis);
+        setIsAnalyzing(false);
+        toast({
+          title: "Analysis Complete",
+          description: "Your judgment has been analyzed successfully.",
+        });
+      }, 2000);
     }
   };
 
@@ -168,13 +155,13 @@ export default function Analysis() {
                   <Button
                     className="w-full"
                     onClick={handleAnalyze}
-                    disabled={analyzeMutation.isPending}
+                    disabled={isAnalyzing}
                     data-testid="button-analyze"
                   >
-                    {analyzeMutation.isPending ? "Analyzing..." : "Analyze Document"}
+                    {isAnalyzing ? "Analyzing..." : "Analyze Document"}
                   </Button>
 
-                  {analyzeMutation.isPending && (
+                  {isAnalyzing && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Analyzing document...</span>

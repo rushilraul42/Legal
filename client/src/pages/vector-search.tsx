@@ -1,10 +1,8 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
   Database,
@@ -12,16 +10,20 @@ import {
   BookOpen,
   TrendingUp,
 } from "lucide-react";
+import { searchMockVectorResults } from "@/lib/mock-data";
 import type { VectorSearchResult } from "@shared/schema";
 
 export default function VectorSearch() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
+  const [results, setResults] = useState<VectorSearchResult[]>([]);
 
-  const { data: results, isLoading } = useQuery<VectorSearchResult[]>({
-    queryKey: ["/api/vector-search", activeSearch],
-    enabled: !!activeSearch,
-  });
+  useEffect(() => {
+    if (activeSearch) {
+      const searchResults = searchMockVectorResults(activeSearch);
+      setResults(searchResults);
+    }
+  }, [activeSearch]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,79 +109,63 @@ export default function VectorSearch() {
         </Card>
       </div>
 
-      {activeSearch && (
-        <div>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-16 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : results && results.length > 0 ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Found <span className="font-semibold text-foreground">{results.length}</span> relevant sections
-              </p>
+      {activeSearch && results.length > 0 && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Found <span className="font-semibold text-foreground">{results.length}</span> relevant sections
+          </p>
 
-              {results.map((result) => (
-                <Card key={result.id} className="hover-elevate">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline">{result.section}</Badge>
-                          <Badge variant="secondary">{result.metadata.act}</Badge>
-                          {result.metadata.year && (
-                            <Badge variant="secondary">{result.metadata.year}</Badge>
-                          )}
-                        </div>
-                        <CardTitle className="text-lg mb-2">{result.lawName}</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Relevance:</span>
-                          <Progress
-                            value={result.relevanceScore * 100}
-                            className="h-2 w-32"
-                          />
-                          <span className="text-xs font-medium">
-                            {(result.relevanceScore * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                      </div>
+          {results.map((result) => (
+            <Card key={result.id} className="hover-elevate">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline">{result.section}</Badge>
+                      <Badge variant="secondary">{result.metadata.act}</Badge>
+                      {result.metadata.year && (
+                        <Badge variant="secondary">{result.metadata.year}</Badge>
+                      )}
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                      {result.content}
-                    </p>
-                    {result.metadata.category && (
-                      <div className="mt-4 pt-4 border-t">
-                        <Badge variant="outline">{result.metadata.category}</Badge>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Database className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No results found</h3>
-                <p className="text-muted-foreground">
-                  Try different search terms or be more specific
+                    <CardTitle className="text-lg mb-2">{result.lawName}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Relevance:</span>
+                      <Progress
+                        value={result.relevanceScore * 100}
+                        className="h-2 w-32"
+                      />
+                      <span className="text-xs font-medium">
+                        {(result.relevanceScore * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {result.content}
                 </p>
+                {result.metadata.category && (
+                  <div className="mt-4 pt-4 border-t">
+                    <Badge variant="outline">{result.metadata.category}</Badge>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          )}
+          ))}
         </div>
+      )}
+
+      {activeSearch && results.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Database className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No results found</h3>
+            <p className="text-muted-foreground">
+              Try different search terms or be more specific
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {!activeSearch && (

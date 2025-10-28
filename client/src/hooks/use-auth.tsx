@@ -1,15 +1,24 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { type User } from "firebase/auth";
-import { onAuthChange, handleRedirect } from "@/lib/firebase";
+import { createContext, useContext, useState, useEffect } from "react";
+
+interface User {
+  id: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  login: () => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: true,
+  loading: false,
+  login: () => {},
+  logout: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -17,20 +26,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Handle redirect on mount
-    handleRedirect().catch(console.error);
-
-    // Listen for auth state changes
-    const unsubscribe = onAuthChange((user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
+    const storedUser = localStorage.getItem("mockUser");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
+  const login = () => {
+    const mockUser: User = {
+      id: "user-1",
+      email: "lawyer@example.com",
+      displayName: "John Doe",
+      photoURL: undefined,
+    };
+    localStorage.setItem("mockUser", JSON.stringify(mockUser));
+    setUser(mockUser);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("mockUser");
+    setUser(null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

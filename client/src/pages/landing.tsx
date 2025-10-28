@@ -13,18 +13,20 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Link } from "wouter";
-import { loginWithGoogle } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Landing() {
-  const { user, loading } = useAuth();
+  const { user, loading, login } = useAuth();
 
   const handleGetStarted = () => {
     if (user) {
       window.location.href = "/dashboard";
     } else {
-      loginWithGoogle();
+      login();
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 100);
     }
   };
 
@@ -46,7 +48,7 @@ export default function Landing() {
                   <Button data-testid="button-dashboard">Dashboard</Button>
                 </Link>
               ) : (
-                <Button onClick={loginWithGoogle} data-testid="button-signin">
+                <Button onClick={login} data-testid="button-signin">
                   Sign In
                 </Button>
               )
@@ -114,7 +116,7 @@ export default function Landing() {
                 </div>
                 <CardTitle>Secure & Fast</CardTitle>
                 <CardDescription>
-                  Firebase authentication with instant results
+                  Secure authentication with instant results
                 </CardDescription>
               </CardHeader>
             </Card>

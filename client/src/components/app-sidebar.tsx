@@ -23,7 +23,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
-import { logout } from "@/lib/firebase";
 
 const mainItems = [
   {
@@ -63,10 +62,11 @@ const resourceItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    logout();
+    window.location.href = "/";
   };
 
   return (
@@ -133,7 +133,7 @@ export function AppSidebar() {
         <SidebarFooter className="p-4">
           <div className="flex items-center gap-3 p-2 rounded-lg bg-card">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user.photoURL || undefined} />
+              <AvatarImage src={user.photoURL} />
               <AvatarFallback>
                 {user.displayName?.charAt(0) || user.email?.charAt(0) || "U"}
               </AvatarFallback>

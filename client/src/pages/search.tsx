@@ -1,10 +1,8 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -22,7 +20,8 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "wouter";
-import type { LegalCase, SearchQuery } from "@shared/schema";
+import { searchMockCases } from "@/lib/mock-data";
+import type { SearchResult } from "@shared/schema";
 
 export default function Search() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,17 +34,14 @@ export default function Search() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [activeSearch, setActiveSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
 
-  const { data: searchResults, isLoading } = useQuery<{
-    cases: LegalCase[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }>({
-    queryKey: ["/api/search", activeSearch, filters],
-    enabled: !!activeSearch,
-  });
+  useEffect(() => {
+    if (activeSearch) {
+      const results = searchMockCases(activeSearch, filters);
+      setSearchResults(results);
+    }
+  }, [activeSearch, filters]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,78 +171,62 @@ export default function Search() {
         </CardContent>
       </Card>
 
-      {activeSearch && (
-        <div>
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-20 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : searchResults && searchResults.cases.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Found <span className="font-semibold text-foreground">{searchResults.total}</span> results
-                </p>
-              </div>
+      {activeSearch && searchResults && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Found <span className="font-semibold text-foreground">{searchResults.total}</span> results
+            </p>
+          </div>
 
-              {searchResults.cases.map((caseItem) => (
-                <Card key={caseItem.id} className="hover-elevate">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {caseItem.caseNumber}
-                          </Badge>
-                          <Badge variant="secondary">{caseItem.court}</Badge>
+          {searchResults.cases.length > 0 ? (
+            searchResults.cases.map((caseItem) => (
+              <Card key={caseItem.id} className="hover-elevate">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {caseItem.caseNumber}
+                        </Badge>
+                        <Badge variant="secondary">{caseItem.court}</Badge>
+                      </div>
+                      <CardTitle className="text-lg mb-2">{caseItem.title}</CardTitle>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {caseItem.date}
                         </div>
-                        <CardTitle className="text-lg mb-2">{caseItem.title}</CardTitle>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            {caseItem.date}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Building2 className="h-4 w-4" />
-                            {caseItem.jurisdiction}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <FileText className="h-4 w-4" />
-                            {caseItem.documentType}
-                          </div>
+                        <div className="flex items-center gap-1">
+                          <Building2 className="h-4 w-4" />
+                          {caseItem.jurisdiction}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          {caseItem.documentType}
                         </div>
                       </div>
-                      <Link href={`/case/${caseItem.id}`}>
-                        <Button variant="outline" size="sm" data-testid={`button-view-case-${caseItem.id}`}>
-                          View Details
-                          <ChevronRight className="h-4 w-4 ml-1" />
-                        </Button>
-                      </Link>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm line-clamp-3">{caseItem.excerpt}</p>
-                    {caseItem.judges && caseItem.judges.length > 0 && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Judges:</span> {caseItem.judges.join(", ")}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    <Link href={`/case/${caseItem.id}`}>
+                      <Button variant="outline" size="sm" data-testid={`button-view-case-${caseItem.id}`}>
+                        View Details
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm line-clamp-3">{caseItem.excerpt}</p>
+                  {caseItem.judges && caseItem.judges.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Judges:</span> {caseItem.judges.join(", ")}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
           ) : (
             <Card>
               <CardContent className="py-12 text-center">

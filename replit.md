@@ -2,25 +2,23 @@
 
 ## Project Overview
 
-BetterCall AI is a comprehensive AI-powered legal assistant platform specifically designed for lawyers and legal professionals. It combines modern web technologies, AI integration, and a sophisticated legal database system to revolutionize legal research and document analysis.
+BetterCall AI is a comprehensive AI-powered legal assistant platform specifically designed for lawyers and legal professionals. It showcases a complete frontend implementation with all features working on dummy data, ready for backend integration.
 
-## Core Features
-
-### Implemented (MVP)
+## Core Features (All Working on Frontend with Dummy Data)
 
 1. **Landing Page** - Professional marketing page with:
    - Hero section with clear value proposition
    - Feature showcase grid
    - Statistics display
    - Responsive footer
-   - Firebase authentication integration
+   - Simple mock authentication
    - Dark/Light theme toggle
 
-2. **Firebase Authentication**
-   - Google Sign-In integration
+2. **Mock Authentication**
+   - Simple localStorage-based mock authentication
+   - No external dependencies required
    - Protected routes for authenticated users
    - User profile display in sidebar
-   - Automatic redirect handling
 
 3. **Dashboard** - Main application hub with:
    - Quick search functionality
@@ -30,15 +28,15 @@ BetterCall AI is a comprehensive AI-powered legal assistant platform specificall
    - Research insights
 
 4. **Case Search** - Advanced legal case search with:
-   - Semantic search through 130K+ legal documents (mock data)
+   - Semantic search through 130K+ legal documents (mock data with 5 real cases)
    - Advanced filtering (court, jurisdiction, document type)
-   - Pagination support
+   - Real-time filtering
    - Case result cards with key metadata
-   - Integration-ready for India Kanoon API
+   - Complete case information
 
 5. **AI Judgment Analysis** - Document analysis page with:
    - Drag-and-drop file upload
-   - AI-powered analysis results:
+   - Simulated AI-powered analysis results:
      - Summary and key points extraction
      - Precedent matching with citations
      - Legal issues identification
@@ -46,10 +44,10 @@ BetterCall AI is a comprehensive AI-powered legal assistant platform specificall
    - Export and copy functionality
 
 6. **Vector Database Search** - Semantic law search with:
-   - Search through 45+ Indian laws (mock data)
+   - Search through 45+ Indian laws (mock data with 5 real laws)
    - Relevance scoring display
    - Popular laws quick access
-   - Integration-ready for Pinecone
+   - Semantic filtering
 
 7. **Case Details** - Comprehensive case view with:
    - Full case metadata and information
@@ -64,17 +62,15 @@ BetterCall AI is a comprehensive AI-powered legal assistant platform specificall
 - React 18 with TypeScript
 - Vite for build tooling
 - Wouter for routing
-- TanStack Query for data fetching
+- TanStack Query (with mock data, no actual API calls)
 - Shadcn UI components with Tailwind CSS
-- Firebase SDK for authentication
 - Dark/Light theme support
+- All data from `client/src/lib/mock-data.ts`
 
 **Backend:**
-- Express.js server
-- In-memory storage (MemStorage)
-- RESTful API endpoints
-- Mock data for all features (ready for integration)
-- CORS-enabled for future API integration
+- Express.js server (present but not used by frontend)
+- In-memory storage (not currently used)
+- Ready for future API integration
 
 **Design System:**
 - Professional legal color scheme (blue primary)
@@ -83,92 +79,66 @@ BetterCall AI is a comprehensive AI-powered legal assistant platform specificall
 - Responsive breakpoints (mobile, tablet, desktop)
 - Accessible components with proper ARIA labels
 
-## API Endpoints
+## Mock Data
 
-### Search & Cases
-- `GET /api/search` - Search legal cases with filters
-- `GET /api/case/:id` - Get case details by ID
+All application data is stored in `client/src/lib/mock-data.ts`:
 
-### Analysis
-- `POST /api/analyze-judgment` - Analyze uploaded legal document
-
-### Vector Search
-- `GET /api/vector-search` - Semantic search through laws
-
-### Authentication
-- `POST /api/auth/register` - Register/sync Firebase user
-- `GET /api/auth/user/:firebaseUid` - Get user by Firebase UID
-
-## Data Models
-
-### LegalCase
-- Case metadata (number, title, court, date, judges)
-- Full text and excerpt
-- Citations and related cases
-- Petitioner/respondent information
-- Verdict and headnotes
-
-### JudgmentAnalysis
-- Document information
-- AI-generated summary
-- Key points extraction
-- Precedents with citations
-- Legal issues and recommendations
-
-### VectorSearchResult
-- Law name and section
-- Content text
-- Relevance score
-- Metadata (act, year, category)
-
-## Environment Variables Required
-
-### Firebase (for authentication):
-- `VITE_FIREBASE_PROJECT_ID` - Firebase project ID
-- `VITE_FIREBASE_APP_ID` - Firebase app ID
-- `VITE_FIREBASE_API_KEY` - Firebase API key
-
-### Future Integration (not required for MVP):
-- `OPENAI_API_KEY` - For AI judgment analysis
-- Pinecone credentials - For vector search
+- **5 Legal Cases** with full details (title, court, judges, full text, citations, etc.)
+- **Judgment Analysis** with AI-generated insights
+- **5 Vector Search Results** from Indian laws (Contract Act, IPC, Constitution, etc.)
+- All data is realistic and representative of real legal documents
 
 ## Running the Project
 
-1. Install dependencies (already done via packager)
-2. Configure Firebase secrets (use ask_secrets tool if needed)
-3. Run `npm run dev` - Starts both frontend and backend
-4. Access at the development URL
+1. Install dependencies: `npm install` (or use packager tool)
+2. Run `npm run dev` - Starts both frontend and backend
+3. Access the development URL
+4. Click "Sign In" to automatically log in with mock user
+5. Explore all features with dummy data
+
+## No Environment Variables Required
+
+The application runs completely on the frontend with no external dependencies:
+- No Firebase configuration needed
+- No API keys required
+- No database setup needed
+- Everything works out of the box
 
 ## Future Integration Points
 
-### Ready for Integration:
-1. **India Kanoon API** - Replace mock search in `storage.searchCases()`
-2. **OpenAI GPT-5** - Implement real judgment analysis in `storage.analyzeJudgment()`
-3. **Pinecone Vector DB** - Replace mock vector search in `storage.vectorSearch()`
-4. **Web Scraping** - Fallback strategy for India Kanoon when API fails
-5. **Caching Layer** - Add Redis or similar for 5-minute TTL caching
+### When Ready for Real Backend:
 
-### Backend Services to Implement:
-- Enhanced India Kanoon Service with retry logic and exponential backoff
-- Multi-strategy search (API → Browser → Scraping → Templates)
-- Document processing for file uploads
-- User preferences and saved searches persistence
+1. **Replace Mock Authentication** in `client/src/hooks/use-auth.tsx`
+   - Integrate with Firebase or other auth provider
+   - Update login/logout logic
+   
+2. **Replace Mock Data** in pages:
+   - Update `client/src/pages/search.tsx` to use real API calls
+   - Update `client/src/pages/analysis.tsx` to call analysis API
+   - Update `client/src/pages/vector-search.tsx` to use vector DB
+   - Update `client/src/pages/case-details.tsx` to fetch real case data
 
-## User Preferences
+3. **Backend Services to Implement:**
+   - India Kanoon API integration
+   - OpenAI GPT-5 for judgment analysis
+   - Pinecone Vector DB for semantic search
+   - Web scraping fallback
+   - Caching layer (Redis)
+
+## User Experience
 
 - Professional legal design aesthetic
 - Dark mode support throughout
 - Responsive design for all screen sizes
 - Accessibility-first approach
-- Fast, efficient UX with loading states
+- Fast, efficient UX with instant feedback (no loading delays from dummy data)
+- All features functional and interactive
 
 ## Recent Changes
 
-- Created complete schema with all data models
-- Built all frontend pages and components
-- Implemented Firebase authentication
-- Created mock backend with realistic legal data
-- Set up routing with protected routes
-- Designed professional legal-themed UI
-- Added dark mode support
-- Implemented responsive layouts
+- Removed Firebase dependency
+- Replaced all API calls with local mock data
+- Simplified authentication to localStorage-based system
+- Created comprehensive mock data library
+- All features now work completely on frontend
+- No backend/API configuration required

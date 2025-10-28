@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Calendar,
@@ -18,33 +16,13 @@ import {
   Gavel,
 } from "lucide-react";
 import { Link } from "wouter";
-import type { LegalCase } from "@shared/schema";
+import { getMockCaseById } from "@/lib/mock-data";
 
 export default function CaseDetails() {
   const [, params] = useRoute("/case/:id");
   const caseId = params?.id;
 
-  const { data: caseData, isLoading } = useQuery<LegalCase>({
-    queryKey: ["/api/case", caseId],
-    enabled: !!caseId,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-3/4 mb-2" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-48 w-full" />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const caseData = caseId ? getMockCaseById(caseId) : undefined;
 
   if (!caseData) {
     return (
