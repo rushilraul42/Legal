@@ -103,11 +103,12 @@ export default function Analysis() {
             </CardHeader>
             <CardContent>
               <div
-                className={`relative border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
-                  dragActive
+                className={
+                  "relative border-2 border-dashed rounded-lg p-12 text-center transition-colors " +
+                  (dragActive
                     ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                }`}
+                    : "border-gray-200 hover:border-primary/50")
+                }
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
@@ -312,7 +313,7 @@ export default function Analysis() {
                   <p className="text-sm text-muted-foreground mb-2">
                     {precedent.relevance}
                   </p>
-                  <Button variant="link" size="sm" className="p-0 h-auto" asChild>
+                  <Button variant="ghost" size="sm" className="p-0 h-auto text-primary hover:text-primary/80" asChild>
                     <a href={`/case/${precedent.caseId}`}>View Full Case →</a>
                   </Button>
                 </div>
