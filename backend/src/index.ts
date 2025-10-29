@@ -1,8 +1,21 @@
+import dotenv from "dotenv";
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { initializeAll } from "./initialize";
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
+
+// CORS configuration - allow frontend to access backend API
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 
 declare module 'http' {
   interface IncomingMessage {
@@ -39,17 +52,19 @@ app.use((req, res, next) => {
         logLine = logLine.slice(0, 79) + "…";
       }
 
-      log(logLine);
+      console.log(logLine);
     }
   });
 
   next();
 });
 
-(async () => {
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  (async () => {
+  // Initialize RAG services
+  console.log("Initializing RAG and AI services...");
+  await initializeAll();
+  
+  const server = await registerRoutes(app);  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
@@ -57,20 +72,10 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
+  // Pure backend API server - no frontend serving
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  // Backend API server port
+  const port = parseInt(process.env.PORT || '3000', 10);
   // reusePort (SO_REUSEPORT) is not supported on all platforms (notably Windows)
   // Passing reusePort: true on Windows causes an ENOTSUP error. Only enable it
   // on platforms that are not win32.
@@ -84,6 +89,6 @@ app.use((req, res, next) => {
   }
 
   server.listen(listenOptions, () => {
-    log(`serving on port ${port}`);
+    console.log(`Backend API server running on port ${port}`);
   });
 })();
