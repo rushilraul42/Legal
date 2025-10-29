@@ -18,11 +18,16 @@ export class AIService {
   private gemini: GoogleGenerativeAI | null = null;
 
   constructor() {
-    const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || 
+                   process.env.VITE_GEMINI_API_KEY || 
+                   process.env.VITE_GOOGLE_AI_API_KEY ||
+                   process.env.GOOGLE_AI_API_KEY;
+    
     if (apiKey) {
       this.gemini = new GoogleGenerativeAI(apiKey);
+      console.log("✅ Gemini AI service initialized successfully");
     } else {
-      console.warn("Gemini API key not available - using fallback responses");
+      console.warn("⚠️  Gemini API key not available - using fallback responses");
     }
   }
 

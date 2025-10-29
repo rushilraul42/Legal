@@ -50,28 +50,35 @@ export class RAGService {
   async initialize(): Promise<void> {
     try {
       // Check if required environment variables are set
-      if (!process.env.PINECONE_API_KEY) {
+      const pineconeKey = process.env.PINECONE_API_KEY || process.env.VITE_PINECONE_API_KEY;
+      if (!pineconeKey) {
         console.warn("PINECONE_API_KEY environment variable is not set - RAG service will use mock data");
         this.initialized = true; // Allow fallback mode
         return;
       }
       
-      // Gemini API key is optional - will use fallback if not available
-      if (!process.env.GEMINI_API_KEY) {
+      // Get Gemini API key with multiple fallback options
+      const geminiKey = process.env.GEMINI_API_KEY || 
+                       process.env.VITE_GEMINI_API_KEY || 
+                       process.env.VITE_GOOGLE_AI_API_KEY ||
+                       process.env.GOOGLE_AI_API_KEY;
+      
+      if (!geminiKey) {
         console.warn("GEMINI_API_KEY not set - using fallback analysis");
       }
 
       // Initialize Pinecone
       this.pinecone = new Pinecone({
-        apiKey: process.env.PINECONE_API_KEY
+        apiKey: pineconeKey
       });
       
       // Initialize Gemini (optional)
-      if (process.env.GEMINI_API_KEY) {
-        this.gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      if (geminiKey) {
+        this.gemini = new GoogleGenerativeAI(geminiKey);
+        console.log("✅ Gemini initialized in RAG service");
       }
 
-      this.indexName = process.env.PINECONE_INDEX_NAME || "legal-documents";
+      this.indexName = process.env.PINECONE_INDEX_NAME || process.env.VITE_PINECONE_INDEX_NAME || "legal-documents";
       this.initialized = true;
 
       console.log("RAG Service initialized successfully");
@@ -269,7 +276,7 @@ Format your response as JSON:
       };
     } catch (error) {
       console.error("Error generating analysis:", error);
-      return this.getFallbackAnalysisData();
+      return this.getFallbackAnalysisData(judgmentText);
     }
   }
 
@@ -465,21 +472,28 @@ Format your response as JSON:
     };
   }
 
-  private getFallbackAnalysisData() {
+  private getFallbackAnalysisData(judgmentText?: string) {
+    // Extract some basic insights from the judgment text if available
+    const text = judgmentText || "";
+    const hasSection = text.toLowerCase().includes('section');
+    const hasArticle = text.toLowerCase().includes('article');
+    const hasCourt = text.toLowerCase().includes('court');
+    const hasAct = text.toLowerCase().includes('act');
+    
     return {
-      summary: "Legal analysis completed using available context and legal principles.",
+      summary: `This legal document discusses ${hasSection ? 'statutory provisions' : 'legal principles'} ${hasArticle ? 'and constitutional matters' : ''} ${hasCourt ? 'with judicial proceedings' : ''} that require detailed legal analysis.`,
       keyPoints: [
-        "Constitutional principles and fundamental rights are relevant",
-        "Statutory provisions and regulatory compliance should be considered",
-        "Procedural safeguards and due process requirements apply",
-        "Precedential value and judicial interpretation are important",
-        "Practical implications for future cases should be evaluated"
+        hasSection ? "Specific statutory sections and provisions are referenced" : "Legal principles require interpretation",
+        hasArticle ? "Constitutional articles and fundamental rights are discussed" : "Regulatory compliance considerations",
+        hasCourt ? "Court proceedings and judicial interpretation are involved" : "Procedural requirements apply",
+        hasAct ? "Multiple Acts and legal frameworks are applicable" : "Case-specific legal analysis needed",
+        "Precedential value and legal implications should be evaluated"
       ],
       recommendations: [
-        "Review all relevant statutory provisions carefully",
-        "Examine procedural compliance in detail",
-        "Consider appeal options if constitutional issues are involved",
-        "Document all relevant precedents and citations"
+        hasSection ? "Review the specific sections mentioned for detailed requirements" : "Conduct thorough statutory research",
+        hasArticle ? "Examine constitutional provisions and their judicial interpretation" : "Verify procedural compliance",
+        hasCourt ? "Study relevant court judgments and precedents" : "Consider jurisdictional requirements",
+        "Consult with specialized legal counsel for case-specific advice"
       ]
     };
   }
