@@ -1,0 +1,9 @@
+# Netlify redirects for SPA routing
+/*    /index.html   200
+
+# Specific routes (optional, for clarity)
+/dashboard    /index.html   200
+/search       /index.html   200  
+/analysis     /index.html   200
+/vector-search /index.html  200
+/case/*       /index.html   200
