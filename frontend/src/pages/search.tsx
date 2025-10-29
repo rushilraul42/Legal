@@ -18,10 +18,23 @@ import {
   FileText,
   ChevronRight,
   X,
+  Loader2,
 } from "lucide-react";
 import { Link } from "wouter";
-import { searchMockCases } from "@/lib/mock-data";
-import type { SearchResult } from "@shared/schema";
+import { apiService } from "@/lib/apiService";
+import { useToast } from "@/hooks/use-toast";
+
+interface IndiaKanoonCase {
+  tid: string;
+  title: string;
+  docdisplaydate: string;
+  court: string;
+  doctype: string;
+  headline: string;
+  url: string;
+  docsource?: string;
+  docsize?: number;
+}
 
 export default function Search() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,17 +44,72 @@ export default function Search() {
     dateFrom: "",
     dateTo: "",
     documentType: "",
+    title: "",
+    author: "",
+    citation: "",
   });
   const [showFilters, setShowFilters] = useState(false);
   const [activeSearch, setActiveSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
+  const [searchResults, setSearchResults] = useState<IndiaKanoonCase[]>([]);
+  const [totalResults, setTotalResults] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [displayLimit, setDisplayLimit] = useState(50);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (activeSearch) {
-      const results = searchMockCases(activeSearch, filters);
-      setSearchResults(results);
+      setCurrentPage(0);
+      performSearch(0);
     }
   }, [activeSearch, filters]);
+
+  const performSearch = async (page: number = 0) => {
+    setIsLoading(true);
+    try {
+      const response = await apiService.searchIndiaKanoon({
+        query: activeSearch,
+        maxResults: 1000,
+        pagenum: page,
+        court: filters.court || undefined,
+        doctype: filters.documentType || undefined,
+        startDate: filters.dateFrom || undefined,
+        endDate: filters.dateTo || undefined,
+        title: filters.title || undefined,
+        author: filters.author || undefined,
+        citation: filters.citation || undefined,
+      });
+
+      console.log('Search response:', response);
+      
+      // If loading more pages, append results
+      if (page > 0) {
+        setSearchResults(prev => [...prev, ...(response.docs || [])]);
+      } else {
+        setSearchResults(response.docs || []);
+      }
+      
+      setTotalResults(response.total || 0);
+      setCurrentPage(page);
+    } catch (error) {
+      console.error('Search error:', error);
+      toast({
+        title: "Search Failed",
+        description: error instanceof Error ? error.message : "Failed to search cases. Please try again.",
+        variant: "destructive",
+      });
+      if (page === 0) {
+        setSearchResults([]);
+        setTotalResults(0);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadMoreResults = () => {
+    performSearch(currentPage + 1);
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +125,9 @@ export default function Search() {
       dateFrom: "",
       dateTo: "",
       documentType: "",
+      title: "",
+      author: "",
+      citation: "",
     });
   };
 
@@ -65,9 +136,9 @@ export default function Search() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold mb-2">Case Search</h1>
+        <h1 className="text-3xl font-semibold mb-2">Advanced Case Search</h1>
         <p className="text-muted-foreground">
-          Search through 130,000+ legal documents with AI-powered semantic understanding
+          Search 1000+ Indian legal cases with advanced filters - Court, Judge, Citation, Date Range & More
         </p>
       </div>
 
@@ -107,63 +178,115 @@ export default function Search() {
             </div>
 
             {showFilters && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Court</label>
-                  <Select value={filters.court} onValueChange={(value) => setFilters({...filters, court: value})}>
-                    <SelectTrigger data-testid="select-court">
-                      <SelectValue placeholder="Select court" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="supreme">Supreme Court</SelectItem>
-                      <SelectItem value="high">High Court</SelectItem>
-                      <SelectItem value="district">District Court</SelectItem>
-                      <SelectItem value="tribunal">Tribunal</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-4 pt-4 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Court</label>
+                    <Select value={filters.court} onValueChange={(value) => setFilters({...filters, court: value})}>
+                      <SelectTrigger data-testid="select-court">
+                        <SelectValue placeholder="Select court" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="supremecourt">Supreme Court</SelectItem>
+                        <SelectItem value="highcourts">All High Courts</SelectItem>
+                        <SelectItem value="delhi">Delhi High Court</SelectItem>
+                        <SelectItem value="bombay">Bombay High Court</SelectItem>
+                        <SelectItem value="kolkata">Calcutta High Court</SelectItem>
+                        <SelectItem value="chennai">Madras High Court</SelectItem>
+                        <SelectItem value="allahabad">Allahabad High Court</SelectItem>
+                        <SelectItem value="karnataka">Karnataka High Court</SelectItem>
+                        <SelectItem value="gujarat">Gujarat High Court</SelectItem>
+                        <SelectItem value="punjab">Punjab & Haryana High Court</SelectItem>
+                        <SelectItem value="tribunals">All Tribunals</SelectItem>
+                        <SelectItem value="delhidc">Delhi District Courts</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Document Type</label>
+                    <Select value={filters.documentType} onValueChange={(value) => setFilters({...filters, documentType: value})}>
+                      <SelectTrigger data-testid="select-document-type">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="judgments">All Judgments</SelectItem>
+                        <SelectItem value="judgment">Judgment</SelectItem>
+                        <SelectItem value="order">Order</SelectItem>
+                        <SelectItem value="laws">Central Acts & Rules</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">From Date</label>
+                    <Input
+                      type="text"
+                      placeholder="DD-MM-YYYY"
+                      value={filters.dateFrom}
+                      onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                      data-testid="input-date-from"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">To Date</label>
+                    <Input
+                      type="text"
+                      placeholder="DD-MM-YYYY"
+                      value={filters.dateTo}
+                      onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                      data-testid="input-date-to"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Jurisdiction</label>
-                  <Select value={filters.jurisdiction} onValueChange={(value) => setFilters({...filters, jurisdiction: value})}>
-                    <SelectTrigger data-testid="select-jurisdiction">
-                      <SelectValue placeholder="Select jurisdiction" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="delhi">Delhi</SelectItem>
-                      <SelectItem value="mumbai">Mumbai</SelectItem>
-                      <SelectItem value="bangalore">Bangalore</SelectItem>
-                      <SelectItem value="chennai">Chennai</SelectItem>
-                      <SelectItem value="all">All India</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Case Title</label>
+                    <Input
+                      type="text"
+                      placeholder="Filter by title..."
+                      value={filters.title}
+                      onChange={(e) => setFilters({...filters, title: e.target.value})}
+                      data-testid="input-title"
+                    />
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Document Type</label>
-                  <Select value={filters.documentType} onValueChange={(value) => setFilters({...filters, documentType: value})}>
-                    <SelectTrigger data-testid="select-document-type">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="judgment">Judgment</SelectItem>
-                      <SelectItem value="order">Order</SelectItem>
-                      <SelectItem value="notification">Notification</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Judge/Author</label>
+                    <Input
+                      type="text"
+                      placeholder="Judge name..."
+                      value={filters.author}
+                      onChange={(e) => setFilters({...filters, author: e.target.value})}
+                      data-testid="input-author"
+                    />
+                  </div>
 
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={clearFilters}
-                    className="w-full"
-                    data-testid="button-clear-filters"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Clear Filters
-                  </Button>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Citation</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g., 2023 AIR"
+                      value={filters.citation}
+                      onChange={(e) => setFilters({...filters, citation: e.target.value})}
+                      data-testid="input-citation"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearFilters}
+                      className="w-full"
+                      data-testid="button-clear-filters"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Clear All Filters
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -171,63 +294,101 @@ export default function Search() {
         </CardContent>
       </Card>
 
-      {activeSearch && searchResults && (
+      {activeSearch && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              Found <span className="font-semibold text-foreground">{searchResults.total}</span> results
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Searching...
+                </span>
+              ) : (
+                <>
+                  Found <span className="font-semibold text-foreground">{totalResults.toLocaleString()}</span> results
+                </>
+              )}
             </p>
           </div>
 
-          {searchResults.cases.length > 0 ? (
-            searchResults.cases.map((caseItem) => (
-              <Card key={caseItem.id} className="hover-elevate">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {caseItem.caseNumber}
-                        </Badge>
-                        <Badge variant="secondary">{caseItem.court}</Badge>
+          {!isLoading && searchResults.length > 0 ? (
+            <>
+              {searchResults.map((caseItem) => (
+                <Card key={caseItem.tid} className="hover-elevate">
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {caseItem.tid}
+                          </Badge>
+                          <Badge variant="secondary">{caseItem.court || caseItem.docsource}</Badge>
+                          {caseItem.doctype && (
+                            <Badge variant="outline">{caseItem.doctype}</Badge>
+                          )}
+                        </div>
+                        <CardTitle className="text-lg mb-2">{caseItem.title}</CardTitle>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {caseItem.docdisplaydate}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Building2 className="h-4 w-4" />
+                            {caseItem.court || caseItem.docsource}
+                          </div>
+                          {caseItem.docsize && (
+                            <div className="flex items-center gap-1">
+                              <FileText className="h-4 w-4" />
+                              {Math.round(caseItem.docsize / 1000)}KB
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <CardTitle className="text-lg mb-2">{caseItem.title}</CardTitle>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {caseItem.date}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Building2 className="h-4 w-4" />
-                          {caseItem.jurisdiction}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4" />
-                          {caseItem.documentType}
-                        </div>
-                      </div>
+                      <a 
+                        href={`https://indiankanoon.org/doc/${caseItem.tid}/`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="outline" size="sm">
+                          View on India Kanoon
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </a>
                     </div>
-                    <Link href={`/case/${caseItem.id}`}>
-                      <Button variant="outline" size="sm" data-testid={`button-view-case-${caseItem.id}`}>
-                        View Details
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </Link>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm line-clamp-3">{caseItem.excerpt}</p>
-                  {caseItem.judges && caseItem.judges.length > 0 && (
-                    <div className="mt-3 pt-3 border-t">
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium">Judges:</span> {caseItem.judges.join(", ")}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
-          ) : (
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm line-clamp-3">{caseItem.headline}</p>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {/* Load More Button */}
+              {searchResults.length < totalResults && (
+                <Card>
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Showing {searchResults.length.toLocaleString()} of {totalResults.toLocaleString()} results
+                    </p>
+                    <Button 
+                      onClick={loadMoreResults} 
+                      disabled={isLoading}
+                      size="lg"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Loading More...
+                        </>
+                      ) : (
+                        <>Load More Results</>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : !isLoading ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -237,7 +398,7 @@ export default function Search() {
                 </p>
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -247,17 +408,17 @@ export default function Search() {
             <SearchIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Start Your Search</h3>
             <p className="text-muted-foreground mb-4">
-              Enter keywords to search through 130,000+ legal documents
+              Search real Indian legal cases and judgments from India Kanoon
             </p>
             <div className="flex flex-wrap gap-2 justify-center">
-              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => setSearchQuery("contract law")}>
-                Contract Law
+              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => { setSearchQuery("fundamental rights"); setActiveSearch("fundamental rights"); }}>
+                Fundamental Rights
               </Badge>
-              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => setSearchQuery("property dispute")}>
-                Property Dispute
+              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => { setSearchQuery("constitutional law"); setActiveSearch("constitutional law"); }}>
+                Constitutional Law
               </Badge>
-              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => setSearchQuery("constitutional rights")}>
-                Constitutional Rights
+              <Badge variant="secondary" className="cursor-pointer hover-elevate" onClick={() => { setSearchQuery("section 420 ipc"); setActiveSearch("section 420 ipc"); }}>
+                Section 420 IPC
               </Badge>
             </div>
           </CardContent>

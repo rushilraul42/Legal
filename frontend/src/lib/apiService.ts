@@ -229,16 +229,31 @@ class ApiService {
   async searchIndiaKanoon(params: {
     query: string;
     maxResults?: number;
+    pagenum?: number;
     startDate?: string;
     endDate?: string;
     court?: string;
     doctype?: string;
-  }): Promise<any[]> {
-    const searchParams = new URLSearchParams(
-      Object.fromEntries(
-        Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-      )
-    );
+    title?: string;
+    author?: string;
+    citation?: string;
+  }): Promise<{
+    docs: any[];
+    total: number;
+    query: string;
+  }> {
+    const searchParams = new URLSearchParams();
+    searchParams.append('q', params.query); // Use 'q' to match backend route
+    
+    if (params.maxResults) searchParams.append('maxResults', params.maxResults.toString());
+    if (params.pagenum !== undefined) searchParams.append('pagenum', params.pagenum.toString());
+    if (params.startDate) searchParams.append('startDate', params.startDate);
+    if (params.endDate) searchParams.append('endDate', params.endDate);
+    if (params.court) searchParams.append('court', params.court);
+    if (params.doctype) searchParams.append('doctype', params.doctype);
+    if (params.title) searchParams.append('title', params.title);
+    if (params.author) searchParams.append('author', params.author);
+    if (params.citation) searchParams.append('cite', params.citation);
     
     return this.makeRequest(`/api/india-kanoon/search?${searchParams}`);
   }

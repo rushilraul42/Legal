@@ -274,11 +274,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const searchParams = {
         query: req.query.q as string || "",
-        maxResults: parseInt(req.query.maxResults as string) || 20,
+        maxResults: parseInt(req.query.maxResults as string) || 1000,
+        pagenum: parseInt(req.query.pagenum as string) || 0,
         startDate: req.query.startDate as string,
         endDate: req.query.endDate as string,
         court: req.query.court as string,
-        doctype: req.query.doctype as string
+        doctype: req.query.doctype as string,
+        title: req.query.title as string,
+        cite: req.query.cite as string,
+        author: req.query.author as string,
+        bench: req.query.bench as string,
       };
       
       const results = await indiaKanoonService.searchCases(searchParams);

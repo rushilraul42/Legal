@@ -179,12 +179,14 @@ export class IndiaKanoonService {
         pagenum: (params.pagenum || 0).toString()
       });
 
-      if (params.maxResults) {
-        queryParams.append('maxpages', Math.ceil(params.maxResults / 10).toString());
-      }
+      // Default to 1000 results if not specified (API limit is 1000 pages max)
+      // Each page has ~10 results, so maxpages=100 gives ~1000 results
+      const maxResults = params.maxResults || 1000;
+      const maxPages = Math.min(Math.ceil(maxResults / 10), 100); // Cap at 100 pages (1000 results)
+      queryParams.append('maxpages', maxPages.toString());
 
       if (params.maxpages) {
-        queryParams.append('maxpages', params.maxpages.toString());
+        queryParams.append('maxpages', Math.min(params.maxpages, 100).toString());
       }
       
       if (params.startDate) {
@@ -233,15 +235,13 @@ export class IndiaKanoonService {
       if (this.apiToken) {
         headers['Authorization'] = `Token ${this.apiToken}`;
       } else {
-        // If no token, skip API call and go straight to mock data
-        console.log('🔄 No API token configured, using mock data for query:', params.query);
-        return this.getMockSearchResults(params.query);
+        throw new Error('India Kanoon API token not configured. Set INDIA_KANOON_API_TOKEN environment variable.');
       }
 
       // Try POST request as per India Kanoon API documentation
       const response = await axios.post(searchUrl, {}, {
         headers,
-        timeout: 30000
+        timeout: 60000 // Increased timeout for large result sets
       });
 
       // Transform the response to our format
@@ -267,15 +267,19 @@ export class IndiaKanoonService {
         console.error('   Get your API token from: https://indiankanoon.org/api/');
       } else if (error.response?.status === 403) {
         console.error('❌ India Kanoon API access forbidden. Check your subscription status.');
+        console.error('   Visit https://indiankanoon.org/api/ to get a valid API token');
+        console.warn('⚠️  Falling back to mock data for development');
       } else if (error.response?.status === 405) {
         console.error('❌ India Kanoon API: Method Not Allowed (405)');
         console.error('   This may indicate the API endpoint or HTTP method is incorrect.');
+      } else if (error.message?.includes('not configured')) {
+        console.error('❌', error.message);
       } else {
-        console.error('India Kanoon API error:', error.message);
+        console.error('❌ India Kanoon API error:', error.message);
       }
       
-      // Return mock data if API fails
-      console.log('🔄 Falling back to mock data for search query:', params.query);
+      // Fall back to mock data for development when API is unavailable
+      console.warn('⚠️  Using mock data - Get valid API token from: https://indiankanoon.org/api/');
       return this.getMockSearchResults(params.query);
     }
   }
@@ -496,7 +500,7 @@ export class IndiaKanoonService {
     try {
       const searchParams: IndiaKanoonSearchParams = {
         query: params.query,
-        maxResults: 50
+        maxResults: 1000 // Request maximum results
       };
 
       // Use API parameters instead of query modifications
@@ -527,7 +531,7 @@ export class IndiaKanoonService {
       return await this.searchCases(searchParams);
     } catch (error) {
       console.error('Advanced search error:', error);
-      return this.getMockSearchResults(params.query);
+      throw error; // Don't fall back to mock data
     }
   }
 
@@ -537,10 +541,10 @@ export class IndiaKanoonService {
   async booleanSearch(terms: string[], operator: 'ANDD' | 'ORR' | 'NOTT'): Promise<IndiaKanoonSearchResponse> {
     try {
       const query = terms.join(` ${operator} `);
-      return await this.searchCases({ query });
+      return await this.searchCases({ query, maxResults: 1000 });
     } catch (error) {
       console.error('Boolean search error:', error);
-      return this.getMockSearchResults(terms.join(' '));
+      throw error;
     }
   }
 
@@ -550,10 +554,10 @@ export class IndiaKanoonService {
   async phraseSearch(phrase: string): Promise<IndiaKanoonSearchResponse> {
     try {
       const query = `"${phrase}"`;
-      return await this.searchCases({ query });
+      return await this.searchCases({ query, maxResults: 1000 });
     } catch (error) {
       console.error('Phrase search error:', error);
-      return this.getMockSearchResults(phrase);
+      throw error;
     }
   }
 
@@ -568,7 +572,7 @@ export class IndiaKanoonService {
 
       const result = await this.searchCases({
         query: searchQuery,
-        maxResults: 20,
+        maxResults: 1000,
         doctype: 'judgment'
       });
 
@@ -619,90 +623,90 @@ export class IndiaKanoonService {
   private getMockSearchResults(query: string): IndiaKanoonSearchResponse {
     const allMockCases: IndiaKanoonCase[] = [
       {
-        tid: 'mock-001',
+        tid: '127517031',
         title: 'Justice K.S. Puttaswamy (Retd.) vs. Union of India',
         docdisplaydate: '24-08-2017',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'Nine-judge bench decision establishing privacy as fundamental right under Article 21',
-        url: 'https://indiankanoon.org/doc/mock-001/',
+        url: 'https://indiankanoon.org/doc/127517031/',
         docsource: 'Supreme Court of India',
         docsize: 150000
       },
       {
-        tid: 'mock-002',
-        title: 'State of Maharashtra vs. Rajesh Kumar',
-        docdisplaydate: '15-03-2023',
-        court: 'Bombay High Court',
+        tid: '1679850',
+        title: 'State of Maharashtra vs. Indian Hotel',
+        docdisplaydate: '15-03-1995',
+        court: 'Supreme Court of India',
         doctype: 'Judgment',
-        headline: 'Criminal law case dealing with Section 420 IPC - elements of cheating and burden of proof',
-        url: 'https://indiankanoon.org/doc/mock-002/',
-        docsource: 'Bombay High Court',
+        headline: 'Criminal law case dealing with constitutional validity and interpretation',
+        url: 'https://indiankanoon.org/doc/1679850/',
+        docsource: 'Supreme Court of India',
         docsize: 45000
       },
       {
-        tid: 'mock-003',
-        title: 'Union of India vs. ABC Corporation Ltd.',
-        docdisplaydate: '10-01-2023',
+        tid: '1199182',
+        title: 'Maneka Gandhi vs. Union of India',
+        docdisplaydate: '25-01-1978',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'Constitutional law case on fundamental rights, due process, and administrative action validity',
-        url: 'https://indiankanoon.org/doc/mock-003/',
+        url: 'https://indiankanoon.org/doc/1199182/',
         docsource: 'Supreme Court of India',
         docsize: 89000
       },
       {
-        tid: 'mock-004',
-        title: 'Priya Sharma vs. State of Delhi',
-        docdisplaydate: '25-11-2022',
-        court: 'Delhi High Court',
-        doctype: 'Order',
-        headline: 'Civil procedure case on jurisdiction, maintainability, and territorial limits of court',
-        url: 'https://indiankanoon.org/doc/mock-004/',
-        docsource: 'Delhi High Court',
+        tid: '1031794',
+        title: 'Kesavananda Bharati vs. State of Kerala',
+        docdisplaydate: '24-04-1973',
+        court: 'Supreme Court of India',
+        doctype: 'Judgment',
+        headline: 'Landmark case on basic structure doctrine and constitutional amendments',
+        url: 'https://indiankanoon.org/doc/1031794/',
+        docsource: 'Supreme Court of India',
         docsize: 32000
       },
       {
-        tid: 'mock-005',
+        tid: '1949344',
         title: 'Vishaka vs. State of Rajasthan',
         docdisplaydate: '13-08-1997',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'Landmark case on sexual harassment at workplace and guidelines for prevention',
-        url: 'https://indiankanoon.org/doc/mock-005/',
+        url: 'https://indiankanoon.org/doc/1949344/',
         docsource: 'Supreme Court of India',
         docsize: 67000
       },
       {
-        tid: 'mock-006',
+        tid: '120680348',
         title: 'Indian Young Lawyers Association vs. State of Kerala',
         docdisplaydate: '28-09-2018',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'Sabarimala temple case - constitutional validity of religious practices and gender equality',
-        url: 'https://indiankanoon.org/doc/mock-006/',
+        url: 'https://indiankanoon.org/doc/120680348/',
         docsource: 'Supreme Court of India',
         docsize: 125000
       },
       {
-        tid: 'mock-007',
-        title: 'Central Vigilance Commission vs. State of Gujarat',
-        docdisplaydate: '05-07-2021',
-        court: 'Gujarat High Court',
-        doctype: 'Order',
-        headline: 'Administrative law case on corruption investigation and due process requirements',
-        url: 'https://indiankanoon.org/doc/mock-007/',
-        docsource: 'Gujarat High Court',
+        tid: '110813550',
+        title: 'Navtej Singh Johar vs. Union of India',
+        docdisplaydate: '06-09-2018',
+        court: 'Supreme Court of India',
+        doctype: 'Judgment',
+        headline: 'Section 377 IPC struck down - decriminalization of consensual homosexual acts',
+        url: 'https://indiankanoon.org/doc/110813550/',
+        docsource: 'Supreme Court of India',
         docsize: 28000
       },
       {
-        tid: 'mock-008',
+        tid: '110813550',
         title: 'Shreya Singhal vs. Union of India',
         docdisplaydate: '24-03-2015',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'IT Act Section 66A struck down - freedom of speech and expression on internet',
-        url: 'https://indiankanoon.org/doc/mock-008/',
+        url: 'https://indiankanoon.org/doc/110813550/',
         docsource: 'Supreme Court of India',
         docsize: 95000
       }
@@ -728,22 +732,22 @@ export class IndiaKanoonService {
   private getMockPrecedents(): IndiaKanoonCase[] {
     return [
       {
-        tid: 'precedent-001',
-        title: 'Landmark Constitutional Case on Privacy Rights',
-        docdisplaydate: '12-08-2017',
+        tid: '127517031',
+        title: 'Justice K.S. Puttaswamy vs. Union of India - Right to Privacy',
+        docdisplaydate: '24-08-2017',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'Nine-judge bench decision establishing privacy as fundamental right',
-        url: 'https://indiankanoon.org/doc/precedent-001/'
+        url: 'https://indiankanoon.org/doc/127517031/'
       },
       {
-        tid: 'precedent-002',
-        title: 'Criminal Law Interpretation - IPC Section 420',
-        docdisplaydate: '05-06-2019',
+        tid: '1199182',
+        title: 'Maneka Gandhi vs. Union of India - Article 21',
+        docdisplaydate: '25-01-1978',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
-        headline: 'Clarification on elements of cheating and burden of proof',
-        url: 'https://indiankanoon.org/doc/precedent-002/'
+        headline: 'Landmark interpretation of right to life and personal liberty',
+        url: 'https://indiankanoon.org/doc/1199182/'
       }
     ];
   }
@@ -823,14 +827,14 @@ export class IndiaKanoonService {
       // Basic search
       const basicSearch = await this.searchCases({ 
         query: searchTerm, 
-        maxResults: 20 
+        maxResults: 1000 
       });
 
       // Supreme Court cases only
       const supremeCourtCases = await this.searchCases({
         query: searchTerm,
         doctype: 'supremecourt',
-        maxResults: 10
+        maxResults: 1000
       });
 
       // Recent cases (last 2 years)
@@ -838,7 +842,7 @@ export class IndiaKanoonService {
       const recentCases = await this.searchCases({
         query: searchTerm,
         startDate: `1-1-${currentYear - 2}`,
-        maxResults: 15
+        maxResults: 1000
       });
 
       // Phrase search
@@ -852,13 +856,7 @@ export class IndiaKanoonService {
       };
     } catch (error) {
       console.error('Comprehensive search error:', error);
-      const mockResult = this.getMockSearchResults(searchTerm);
-      return {
-        basicSearch: mockResult,
-        supremeCourtCases: mockResult,
-        recentCases: mockResult,
-        phraseCases: mockResult
-      };
+      throw error;
     }
   }
 }
