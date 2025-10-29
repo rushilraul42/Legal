@@ -26,12 +26,21 @@ export async function initializeRAGServices(): Promise<void> {
     }
     
     // Test India Kanoon service 
-    try {
-      console.log("⚖️ Testing India Kanoon API connection...");
+    console.log("⚖️ Testing India Kanoon API connection...");
+    const ikStatus = indiaKanoonService.getServiceStatus();
+    if (ikStatus.configured) {
+      try {
+        const testSearch = await indiaKanoonService.searchCases({ query: "test", maxResults: 1 });
+        console.log(`✅ India Kanoon API operational (${testSearch.total || 0} results available)`);
+      } catch (error) {
+        console.log("⚠️  India Kanoon API token configured but connection failed - using mock data");
+      }
+    } else {
+      console.log("⚠️  India Kanoon API token not configured - using mock data");
+      console.log("   💡 Set INDIA_KANOON_API_TOKEN environment variable for live API access");
+      // Test mock functionality
       const testSearch = await indiaKanoonService.searchCases({ query: "test", maxResults: 1 });
-      console.log(`✅ India Kanoon API operational (${testSearch.total || 0} results available)`);
-    } catch (error) {
-      console.log("⚠️  India Kanoon service not fully configured - using fallback mode");
+      console.log(`✅ India Kanoon mock service operational (${testSearch.total || 0} mock results available)`);
     }
     
     console.log("🎉 Services initialized - server ready with available functionality!");
@@ -75,11 +84,12 @@ export async function healthCheckServices(): Promise<{
   }
 
   try {
-    // Check India Kanoon service
+    // Check India Kanoon service (always returns results, either from API or mock)
     const ikTest = await indiaKanoonService.searchCases({ query: "test", maxResults: 1 });
     results.indiaKanoonService = ikTest.total >= 0;
   } catch (error) {
     console.log("India Kanoon service health check failed:", error);
+    results.indiaKanoonService = false;
   }
 
   results.overall = results.ragService && results.aiService && results.indiaKanoonService;
