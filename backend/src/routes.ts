@@ -274,7 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const searchParams = {
         query: req.query.q as string || "",
-        maxResults: parseInt(req.query.maxResults as string) || 1000,
+        maxResults: parseInt(req.query.maxResults as string) || 50, // Reduced from 1000 to save API costs
         pagenum: parseInt(req.query.pagenum as string) || 0,
         startDate: req.query.startDate as string,
         endDate: req.query.endDate as string,

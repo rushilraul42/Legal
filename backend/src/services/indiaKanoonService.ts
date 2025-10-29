@@ -700,13 +700,13 @@ export class IndiaKanoonService {
         docsize: 28000
       },
       {
-        tid: '110813550',
+        tid: '110813632',
         title: 'Shreya Singhal vs. Union of India',
         docdisplaydate: '24-03-2015',
         court: 'Supreme Court of India',
         doctype: 'Judgment',
         headline: 'IT Act Section 66A struck down - freedom of speech and expression on internet',
-        url: 'https://indiankanoon.org/doc/110813550/',
+        url: 'https://indiankanoon.org/doc/110813632/',
         docsource: 'Supreme Court of India',
         docsize: 95000
       }

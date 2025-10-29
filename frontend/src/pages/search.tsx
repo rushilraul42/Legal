@@ -69,7 +69,7 @@ export default function Search() {
     try {
       const response = await apiService.searchIndiaKanoon({
         query: activeSearch,
-        maxResults: 1000,
+        maxResults: 50, // Reduced from 1000 to save API costs - use "Load More" for additional results
         pagenum: page,
         court: filters.court || undefined,
         doctype: filters.documentType || undefined,
