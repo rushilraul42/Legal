@@ -86,6 +86,13 @@ export const judgmentAnalysisSchema = z.object({
       relevance: z.string(),
       citation: z.string(),
     })),
+    lawsApplied: z.array(z.object({
+      provision: z.string(),
+      fullText: z.string(),
+      act: z.string(),
+      section: z.string(),
+      relevance: z.string(),
+    })).optional(),
     legalIssues: z.array(z.string()),
     recommendations: z.array(z.string()),
     sentiment: z.string().optional(),

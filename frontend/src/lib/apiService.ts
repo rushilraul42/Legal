@@ -37,6 +37,13 @@ export interface AnalysisResult {
       relevance: string;
       citation: string;
     }>;
+    lawsApplied?: Array<{
+      provision: string;
+      fullText: string;
+      act: string;
+      section: string;
+      relevance: string;
+    }>;
     legalIssues: string[];
     recommendations: string[];
     sentiment: string;

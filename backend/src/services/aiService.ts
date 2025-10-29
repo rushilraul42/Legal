@@ -41,42 +41,71 @@ export class AIService {
         return this.getFallbackAnalysis(documentText);
       }
 
-      const prompt = `You are an expert legal AI assistant specializing in Indian law. 
-Analyze legal documents with precision, citing relevant statutes, case law, and legal principles.
-Focus on constitutional law, civil and criminal procedures, and statutory interpretation.
+      const prompt = `You are a senior legal counsel specializing in Indian jurisprudence with expertise in constitutional law, civil and criminal procedure, and statutory interpretation. Analyze this legal document with the rigor and precision expected in High Court and Supreme Court proceedings.
 
-Please analyze the following legal document and provide:
+CRITICAL INSTRUCTIONS:
+- Use proper legal terminology and Latin maxims where appropriate
+- Cite specific statutory provisions with section numbers
+- Reference constitutional articles and fundamental rights
+- Identify ratio decidendi and obiter dicta if this is a judgment
+- Apply principles of statutory interpretation (literal, golden, mischief rules)
+- Consider doctrine of precedent and stare decisis
+- Analyze procedural compliance with CPC/CrPC requirements
 
-1. A comprehensive summary (2-3 sentences)
-2. Key legal points (5-6 bullet points)
-3. Legal issues identified (3-5 issues)
-4. Practical recommendations (4-5 recommendations)
-5. Relevant precedent suggestions (3-4 cases or statutes to research)
+${context ? `ADDITIONAL CONTEXT: ${context}` : ''}
 
-${context ? `Additional Context: ${context}` : ''}
+DOCUMENT FOR ANALYSIS:
+${documentText.substring(0, 5000)}${documentText.length > 5000 ? '\n[Document truncated for analysis - first 5000 characters]' : ''}
 
-Document Text:
-${documentText.substring(0, 4000)}${documentText.length > 4000 ? '...' : ''}
-
-Provide your analysis in JSON format:
+Provide comprehensive legal analysis in JSON format:
 {
-  "summary": "...",
-  "keyPoints": ["point1", "point2", ...],
-  "legalIssues": ["issue1", "issue2", ...],
-  "recommendations": ["rec1", "rec2", ...],
-  "precedentSuggestions": ["precedent1", "precedent2", ...]
+  "summary": "Detailed case synopsis including: (1) Nature of proceedings (original/appellate/revisional), (2) Principal legal questions raised, (3) Statutory framework invoked, (4) Court's findings and reasoning, (5) Final disposition with specific relief granted/denied. Use precise legal terminology.",
+  "keyPoints": [
+    "Point 1 with specific statutory reference (e.g., 'Section 141 of Negotiable Instruments Act, 1881 - vicarious liability of directors')",
+    "Point 2 citing constitutional provision (e.g., 'Article 14 violation - arbitrary state action without reasonable classification')",
+    "Include at least 6-8 detailed points with legal citations"
+  ],
+  "legalIssues": [
+    "Frame issues as courts would - use 'Whether...' format",
+    "Issue 1: Whether the impugned order suffers from violation of principles of natural justice...",
+    "Issue 2: Whether the statutory provision is ultra vires Article 19(1)(g)...",
+    "Issue 3: Whether there exists a cause of action maintainable in law...",
+    "Include 4-6 precisely framed legal issues"
+  ],
+  "recommendations": [
+    "CRITICAL: NO generic recommendations allowed. Each MUST cite specific sections, acts, and timelines.",
+    "Example GOOD: 'File review petition under Article 137 of Constitution read with Order 47 Rule 1 CPC before the Supreme Court within 30 days from the date of judgment. Ensure application demonstrates error apparent on face of record per Lily Thomas v. Union of India (2000) 6 SCC 224.'",
+    "Example BAD: 'Consider filing an appeal' or 'Review procedural compliance' - TOO GENERIC",
+    "Recommendation 1: File [specific application] under Section X of [Act name] within [exact days] per Article Y of Limitation Act, 1963",
+    "Recommendation 2: Invoke writ jurisdiction under Article 226/32 specifying which fundamental right and which constitutional article violated",
+    "Recommendation 3: Cite binding precedent [Case Name v. Case Name, Citation] with specific legal principle applied",
+    "Include 5-7 detailed recommendations, each 2-3 sentences with full statutory backing"
+  ],
+  "precedentSuggestions": [
+    "Relevant Supreme Court/High Court judgments with proper citations",
+    "Format: Case Name vs. Case Name, [Year] Citation (Court) - Brief holding",
+    "Example: Kesavananda Bharati vs. State of Kerala, AIR 1973 SC 1461 - Basic Structure Doctrine",
+    "Include 4-6 key precedents that are directly applicable"
+  ]
 }`;
 
       const model = this.gemini.getGenerativeModel({ 
         model: "gemini-2.5-flash",
         generationConfig: {
           responseMimeType: "application/json",
+          temperature: 0.4,
+          maxOutputTokens: 8192,
         }
       });
 
+      console.log("🔍 Starting Gemini analysis with enhanced prompt...");
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const analysis = JSON.parse(response.text() || "{}");
+      const responseText = response.text();
+      console.log("✅ Gemini response received, length:", responseText.length);
+      
+      const analysis = JSON.parse(responseText || "{}");
+      console.log("📊 Analysis parsed - keyPoints:", analysis.keyPoints?.length, "recommendations:", analysis.recommendations?.length);
       
       return {
         summary: analysis.summary || "Analysis could not be completed",

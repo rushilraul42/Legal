@@ -130,6 +130,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         analysis: {
           summary: ragAnalysis.summary,
           keyPoints: ragAnalysis.keyPoints,
+          lawsApplied: ragAnalysis.lawsApplied.map(law => ({
+            provision: law.provision,
+            fullText: law.fullText,
+            act: law.act,
+            section: law.section,
+            relevance: law.relevance
+          })),
           precedentsFound: ragAnalysis.relevantLaws.slice(0, 5).map(law => ({
             caseId: law.id,
             caseTitle: law.lawName,

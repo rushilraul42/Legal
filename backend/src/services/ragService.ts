@@ -20,6 +20,13 @@ export interface RAGAnalysisResult {
   summary: string;
   keyPoints: string[];
   relevantLaws: RAGSearchResult[];
+  lawsApplied: Array<{
+    provision: string;
+    fullText: string;
+    act: string;
+    section: string;
+    relevance: string;
+  }>;
   recommendations: string[];
   confidence: number;
 }
@@ -160,25 +167,53 @@ export class RAGService {
   }
 
   /**
-   * Analyze judgment text using RAG approach
+   * Analyze judgment text using RAG approach with enhanced vector search
    */
   async analyzeJudgmentWithRAG(judgmentText: string): Promise<RAGAnalysisResult> {
     try {
-      // Step 1: Extract key legal concepts from judgment
+      // Step 1: Extract key legal concepts, sections, and acts from judgment
       const legalConcepts = await this.extractLegalConcepts(judgmentText);
+      console.log(`Extracted ${legalConcepts.length} legal concepts from document`);
 
-      // Step 2: Search for relevant laws using vector search
-      const relevantLaws = await this.searchRelevantLaws(judgmentText, 15);
+      // Step 2: Perform multiple targeted vector searches for comprehensive context
+      const relevantLawsGeneral = await this.searchRelevantLaws(judgmentText.substring(0, 3000), 15);
+      
+      // Search for specific statutory provisions mentioned
+      const statutoryProvisions = await this.searchRelevantLaws(
+        legalConcepts.filter(c => c.includes('Section') || c.includes('Article')).join(' '),
+        10
+      );
+      
+      // Search for constitutional and procedural law
+      const proceduralLaw = await this.searchRelevantLaws(
+        `${judgmentText.substring(0, 1000)} constitutional law civil procedure criminal procedure`,
+        10
+      );
 
-      // Step 3: Generate comprehensive analysis using GPT with retrieved context
-      const analysis = await this.generateAnalysisWithContext(judgmentText, relevantLaws);
+      // Step 3: Combine and deduplicate all retrieved laws
+      const allRelevantLaws = this.deduplicateAndRankLaws([
+        ...relevantLawsGeneral,
+        ...statutoryProvisions,
+        ...proceduralLaw
+      ]);
+
+      console.log(`Retrieved ${allRelevantLaws.length} unique relevant legal provisions from vector database`);
+
+      // Step 4: Extract laws and sections specifically applied/cited in judgment
+      const lawsApplied = await this.extractLawsAppliedInJudgment(judgmentText, allRelevantLaws);
+      
+      console.log(`Identified ${lawsApplied.length} laws and sections applied in the judgment`);
+
+      // Step 5: Generate comprehensive analysis using Gemini with rich legal context
+      const analysis = await this.generateAnalysisWithContext(judgmentText, allRelevantLaws);
 
       return {
         summary: analysis.summary,
         keyPoints: analysis.keyPoints,
-        relevantLaws: relevantLaws.slice(0, 10), // Top 10 most relevant
+        relevantLaws: allRelevantLaws.slice(0, 12), // Top 12 most relevant
+        lawsApplied: lawsApplied,
         recommendations: analysis.recommendations,
-        confidence: this.calculateConfidence(relevantLaws)
+        confidence: this.calculateConfidence(allRelevantLaws)
       };
     } catch (error) {
       console.error("Error in RAG analysis:", error);
@@ -187,76 +222,148 @@ export class RAGService {
   }
 
   /**
-   * Extract legal concepts from text using NLP
+   * Deduplicate and rank laws by relevance score
    */
-  private async extractLegalConcepts(text: string): Promise<string[]> {
+  private deduplicateAndRankLaws(laws: RAGSearchResult[]): RAGSearchResult[] {
+    const seen = new Map<string, RAGSearchResult>();
+    
+    for (const law of laws) {
+      const existing = seen.get(law.id);
+      if (!existing || law.relevanceScore > existing.relevanceScore) {
+        seen.set(law.id, law);
+      }
+    }
+    
+    return Array.from(seen.values())
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .filter(law => law.relevanceScore > 0.65); // Higher threshold for quality
+  }
+
+  /**
+   * Extract specific laws and sections that are actually applied/cited in the judgment
+   * Uses vector database to retrieve full text of provisions
+   */
+  private async extractLawsAppliedInJudgment(
+    judgmentText: string, 
+    relevantLaws: RAGSearchResult[]
+  ): Promise<Array<{
+    provision: string;
+    fullText: string;
+    act: string;
+    section: string;
+    relevance: string;
+  }>> {
     try {
       this.ensureInitialized();
-      if (!this.gemini) {
-        console.warn("Gemini not available, using fallback legal concept extraction");
-        return ["Constitutional Law", "Civil Procedure", "Criminal Law"];
+      
+      // Extract explicit citations from the judgment text
+      const extractedCitations = this.extractLegalConceptsWithRegex(judgmentText);
+      
+      // Match extracted citations with vector database results
+      const lawsApplied: Array<{
+        provision: string;
+        fullText: string;
+        act: string;
+        section: string;
+        relevance: string;
+      }> = [];
+
+      // For each citation found in the document, find matching law from vector DB
+      for (const citation of extractedCitations.slice(0, 15)) {
+        // Find matching law in relevant laws
+        const matchingLaw = relevantLaws.find(law => 
+          law.lawName.toLowerCase().includes(citation.toLowerCase()) ||
+          law.section.toLowerCase().includes(citation.toLowerCase()) ||
+          citation.toLowerCase().includes(law.section.toLowerCase())
+        );
+
+        if (matchingLaw) {
+          lawsApplied.push({
+            provision: `${matchingLaw.section} of ${matchingLaw.metadata.act}`,
+            fullText: matchingLaw.content,
+            act: matchingLaw.metadata.act,
+            section: matchingLaw.section,
+            relevance: this.determineRelevance(citation, judgmentText)
+          });
+        }
       }
 
-      const prompt = `
-Extract the key legal concepts, statutes, sections, and legal principles mentioned in the following legal text. 
-Return only the specific legal terms and concepts as a comma-separated list:
+      // Use Gemini to identify additional applied laws from context
+      if (this.gemini && lawsApplied.length < 5) {
+        const additionalLaws = await this.identifyAppliedLawsWithAI(judgmentText, relevantLaws);
+        lawsApplied.push(...additionalLaws);
+      }
 
-Text: ${text.substring(0, 2000)}...
-`;
+      // Remove duplicates based on provision
+      const uniqueLaws = Array.from(
+        new Map(lawsApplied.map(law => [law.provision, law])).values()
+      );
 
-      const model = this.gemini.getGenerativeModel({ 
-        model: "gemini-2.5-flash"
-      });
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const concepts = response.text()?.split(',') || [];
-      return concepts.map((concept: string) => concept.trim()).filter(Boolean);
+      return uniqueLaws.slice(0, 10); // Top 10 most relevant applied laws
     } catch (error) {
-      console.error("Error extracting legal concepts:", error);
-      return ["Constitutional Law", "Civil Procedure", "Criminal Law"];
+      console.error("Error extracting applied laws:", error);
+      return [];
     }
   }
 
   /**
-   * Generate analysis using retrieved context
+   * Determine the relevance/application context of a law in the judgment
    */
-  private async generateAnalysisWithContext(
-    judgmentText: string, 
+  private determineRelevance(citation: string, judgmentText: string): string {
+    // Find the context around the citation
+    const citationIndex = judgmentText.toLowerCase().indexOf(citation.toLowerCase());
+    if (citationIndex === -1) return "Referenced in judgment";
+
+    const contextStart = Math.max(0, citationIndex - 150);
+    const contextEnd = Math.min(judgmentText.length, citationIndex + 150);
+    const context = judgmentText.substring(contextStart, contextEnd);
+
+    // Determine relevance based on context
+    if (context.includes("held that") || context.includes("held:")) {
+      return "Applied in ratio decidendi (binding precedent)";
+    } else if (context.includes("violation") || context.includes("contravention")) {
+      return "Alleged violation/contravention";
+    } else if (context.includes("compliance") || context.includes("accordance")) {
+      return "Procedural compliance requirement";
+    } else if (context.includes("pursuant to") || context.includes("under")) {
+      return "Jurisdictional basis/statutory authority";
+    } else if (context.includes("interpretation") || context.includes("meaning")) {
+      return "Subject of statutory interpretation";
+    } else {
+      return "Cited for reference";
+    }
+  }
+
+  /**
+   * Use AI to identify additional laws applied that regex might have missed
+   */
+  private async identifyAppliedLawsWithAI(
+    judgmentText: string,
     relevantLaws: RAGSearchResult[]
-  ): Promise<{ summary: string; keyPoints: string[]; recommendations: string[] }> {
+  ): Promise<Array<{
+    provision: string;
+    fullText: string;
+    act: string;
+    section: string;
+    relevance: string;
+  }>> {
     try {
-      this.ensureInitialized();
-      if (!this.gemini) {
-        console.warn("Gemini not available, using fallback analysis");
-        return this.getFallbackAnalysisData();
-      }
+      if (!this.gemini) return [];
 
-      const contextText = relevantLaws.slice(0, 5).map(law => 
-        `${law.lawName}: ${law.content}`
-      ).join('\n\n');
+      const lawsList = relevantLaws.slice(0, 15).map(law => 
+        `${law.section} - ${law.lawName}`
+      ).join('\n');
 
-      const prompt = `
-As a legal expert, analyze the following judgment using the provided relevant legal context.
+      const prompt = `Analyze this legal judgment and identify which of the following laws/sections are specifically applied, cited, or interpreted in the judgment.
 
-JUDGMENT TEXT:
-${judgmentText.substring(0, 3000)}...
+JUDGMENT EXCERPT:
+${judgmentText.substring(0, 3000)}
 
-RELEVANT LEGAL CONTEXT:
-${contextText}
+AVAILABLE LAWS FROM DATABASE:
+${lawsList}
 
-Please provide:
-1. A comprehensive summary (2-3 sentences)
-2. Key legal points (5 bullet points)
-3. Practical recommendations (3-4 recommendations)
-
-Format your response as JSON:
-{
-  "summary": "...",
-  "keyPoints": ["point1", "point2", ...],
-  "recommendations": ["rec1", "rec2", ...]
-}
-`;
+Return ONLY the laws that are explicitly mentioned or applied in the judgment as a JSON array:
+["Section X of Act Y", "Article Z of Constitution", ...]`;
 
       const model = this.gemini.getGenerativeModel({ 
         model: "gemini-2.5-flash",
@@ -267,7 +374,220 @@ Format your response as JSON:
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const analysis = JSON.parse(response.text() || "{}");
+      const identifiedLaws = JSON.parse(response.text() || '[]');
+
+      // Match identified laws with relevant laws to get full details
+      const additionalLaws: Array<{
+        provision: string;
+        fullText: string;
+        act: string;
+        section: string;
+        relevance: string;
+      }> = [];
+
+      for (const lawText of identifiedLaws) {
+        const matchingLaw = relevantLaws.find(law => 
+          lawText.toLowerCase().includes(law.section.toLowerCase()) ||
+          lawText.toLowerCase().includes(law.metadata.act.toLowerCase())
+        );
+
+        if (matchingLaw) {
+          additionalLaws.push({
+            provision: lawText,
+            fullText: matchingLaw.content,
+            act: matchingLaw.metadata.act,
+            section: matchingLaw.section,
+            relevance: "Identified by AI analysis"
+          });
+        }
+      }
+
+      return additionalLaws;
+    } catch (error) {
+      console.error("Error identifying laws with AI:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Extract legal concepts, citations, and provisions from text using NLP
+   */
+  private async extractLegalConcepts(text: string): Promise<string[]> {
+    try {
+      this.ensureInitialized();
+      if (!this.gemini) {
+        console.warn("Gemini not available, using regex-based extraction");
+        return this.extractLegalConceptsWithRegex(text);
+      }
+
+      const prompt = `Analyze this legal document and extract ALL specific legal references. Be comprehensive and precise.
+
+Extract and list:
+1. Statutory sections (e.g., "Section 420 IPC", "Section 138 Negotiable Instruments Act")
+2. Constitutional articles (e.g., "Article 14", "Article 21")
+3. Acts and legislation (e.g., "Indian Penal Code", "Code of Civil Procedure")
+4. Legal doctrines and principles (e.g., "natural justice", "legitimate expectation")
+5. Case law citations (e.g., "Maneka Gandhi", "Kesavananda Bharati")
+6. Court terminology (e.g., "writ petition", "special leave petition", "revision")
+
+Document: ${text.substring(0, 3000)}${text.length > 3000 ? '...' : ''}
+
+Return as a JSON array of strings: ["concept1", "concept2", ...]`;
+
+      const model = this.gemini.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const concepts = JSON.parse(response.text() || '[]');
+      
+      // Combine AI extraction with regex patterns for completeness
+      const regexConcepts = this.extractLegalConceptsWithRegex(text);
+      const combined = [...new Set([...concepts, ...regexConcepts])];
+      
+      return combined.filter(Boolean).slice(0, 50); // Top 50 concepts
+    } catch (error) {
+      console.error("Error extracting legal concepts:", error);
+      return this.extractLegalConceptsWithRegex(text);
+    }
+  }
+
+  /**
+   * Extract legal concepts using regex patterns (fallback)
+   */
+  private extractLegalConceptsWithRegex(text: string): string[] {
+    const concepts: string[] = [];
+    
+    // Extract sections: "Section 123", "Sec. 45", "s. 67"
+    const sections = text.match(/(?:Section|Sec\.|s\.)\s*\d+[A-Z]?(?:\s*\(\d+\))?(?:\s+[A-Z][a-z]+\s+[A-Z][a-z]+)?/gi) || [];
+    concepts.push(...sections);
+    
+    // Extract articles: "Article 14", "Art. 21"
+    const articles = text.match(/(?:Article|Art\.)\s*\d+[A-Z]?/gi) || [];
+    concepts.push(...articles);
+    
+    // Extract acts
+    const acts = text.match(/(?:Indian\s+)?[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+Act(?:,\s*\d{4})?/g) || [];
+    concepts.push(...acts);
+    
+    // Extract "CrPC", "CPC", "IPC", etc.
+    const codes = text.match(/\b(?:CrPC|CPC|IPC|NIA|BNSS|NDPS)\b/g) || [];
+    concepts.push(...codes);
+    
+    // Extract case names (simplified)
+    const cases = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+v[s]?\.\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || [];
+    concepts.push(...cases.slice(0, 5)); // Limit case extractions
+    
+    return [...new Set(concepts)];
+  }
+
+  /**
+   * Generate comprehensive legal analysis using retrieved context from vector database
+   */
+  private async generateAnalysisWithContext(
+    judgmentText: string, 
+    relevantLaws: RAGSearchResult[]
+  ): Promise<{ summary: string; keyPoints: string[]; recommendations: string[] }> {
+    try {
+      this.ensureInitialized();
+      if (!this.gemini) {
+        console.warn("Gemini not available, using fallback analysis");
+        return this.getFallbackAnalysisData(judgmentText);
+      }
+
+      // Build comprehensive legal context from vector database results
+      const statutoryContext = relevantLaws
+        .filter(law => law.metadata.category.includes('Law') || law.metadata.category.includes('Statute'))
+        .slice(0, 6)
+        .map(law => `• ${law.lawName} (${law.section}): ${law.content.substring(0, 300)}`)
+        .join('\n');
+
+      const constitutionalContext = relevantLaws
+        .filter(law => law.metadata.category === 'Constitutional Law')
+        .slice(0, 3)
+        .map(law => `• ${law.lawName}: ${law.content.substring(0, 300)}`)
+        .join('\n');
+
+      const proceduralContext = relevantLaws
+        .filter(law => law.metadata.category.includes('Procedure'))
+        .slice(0, 3)
+        .map(law => `• ${law.lawName}: ${law.content.substring(0, 300)}`)
+        .join('\n');
+
+      const prompt = `You are a senior advocate analyzing this legal document. Use the comprehensive legal database context provided below.
+
+DOCUMENT FOR ANALYSIS:
+${judgmentText.substring(0, 4000)}${judgmentText.length > 4000 ? '\n[Document truncated]' : ''}
+
+RELEVANT STATUTORY PROVISIONS (from Vector Database):
+${statutoryContext || 'No specific statutory provisions retrieved'}
+
+CONSTITUTIONAL FRAMEWORK (from Vector Database):
+${constitutionalContext || 'No constitutional provisions retrieved'}
+
+PROCEDURAL LAW CONTEXT (from Vector Database):
+${proceduralContext || 'No procedural provisions retrieved'}
+
+Provide lawyer-grade analysis with:
+
+1. EXECUTIVE SUMMARY (4-6 sentences covering):
+   - Nature of proceedings (suit/appeal/writ/revision)
+   - Primary legal controversy and applicable framework
+   - Statutory provisions and constitutional articles invoked
+   - Core ratio decidendi
+   - Final disposition and reliefs
+   - Precedential value
+
+2. KEY LEGAL POINTS (8-10 points with):
+   - Specific statutory citations with section numbers
+   - Constitutional article references
+   - Legal doctrines (res judicata, natural justice, etc.)
+   - Burden of proof and evidentiary standards
+   - Jurisdictional analysis
+   - Proper legal terminology and Latin maxims
+
+3. STRATEGIC RECOMMENDATIONS (6-8 actionable items):
+   - MUST include specific section numbers and act names
+   - MUST cite limitation periods with Article numbers
+   - MUST reference writ remedies (Articles 226/32) if applicable
+   - MUST provide precedent citations in proper format
+   - MUST detail CPC/CrPC procedural requirements
+   - NO generic advice like "consider filing appeal" - be specific about which section, which court, which timeframe
+   - Each recommendation should be 2-3 sentences with full legal backing
+
+CRITICAL: Do NOT provide generic recommendations. Every recommendation MUST cite specific statutory provisions, sections, and timelines. Example:
+- GOOD: "File an appeal under Section 96 CPC read with Order 41 Rules 1-5 before the District Court within 90 days from the date of judgment as per Article 116 of Limitation Act, 1963. Ensure memorandum of appeal complies with Order 41 Rule 1 CPC including grounds, relief sought, and certified copies per Order 41 Rule 3."
+- BAD: "Consider filing an appeal" or "Review procedural compliance"
+
+Format as JSON:
+{
+  "summary": "Detailed 4-6 sentence summary with legal terminology",
+  "keyPoints": ["Point with citation", "Point with doctrine", "... 8-10 total"],
+  "recommendations": ["Detailed recommendation with Section X of Y Act within Z days per Article N...", "... 6-8 total with full legal backing"]
+}`;
+
+
+      const model = this.gemini.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.4,
+          maxOutputTokens: 8192,
+        }
+      });
+
+      console.log("🔍 Starting RAG analysis with context from", relevantLaws.length, "legal provisions");
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const responseText = response.text();
+      console.log("✅ RAG analysis response received, length:", responseText.length);
+      
+      const analysis = JSON.parse(responseText || "{}");
+      console.log("📊 RAG Analysis - keyPoints:", analysis.keyPoints?.length, "recommendations:", analysis.recommendations?.length);
       
       return {
         summary: analysis.summary || "Analysis could not be completed",
@@ -453,6 +773,8 @@ Format your response as JSON:
    * Fallback analysis when RAG fails
    */
   private getFallbackAnalysis(judgmentText: string): RAGAnalysisResult {
+    const mockLaws = this.getMockSearchResults(judgmentText.substring(0, 100));
+    
     return {
       summary: "This appears to be a legal judgment that requires detailed analysis. The document contains legal principles and procedural elements that need expert review.",
       keyPoints: [
@@ -461,7 +783,14 @@ Format your response as JSON:
         "Constitutional and statutory provisions may be applicable",
         "Case-specific facts require legal interpretation"
       ],
-      relevantLaws: this.getMockSearchResults(judgmentText.substring(0, 100)),
+      relevantLaws: mockLaws,
+      lawsApplied: mockLaws.slice(0, 3).map(law => ({
+        provision: `${law.section} of ${law.metadata.act}`,
+        fullText: law.content,
+        act: law.metadata.act,
+        section: law.section,
+        relevance: "General application"
+      })),
       recommendations: [
         "Conduct detailed legal research on relevant statutes",
         "Review applicable case precedents",

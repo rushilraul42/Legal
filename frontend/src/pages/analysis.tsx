@@ -14,6 +14,7 @@ import {
   Download,
   ExternalLink,
   Zap,
+  BookOpen,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, type AnalysisResult } from "@/lib/apiService";
@@ -381,6 +382,44 @@ export default function Analysis() {
             </CardContent>
           </Card>
 
+          {analysis.analysis.lawsApplied && analysis.analysis.lawsApplied.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Laws & Sections Applied
+                </CardTitle>
+                <CardDescription>
+                  Statutory provisions and sections specifically applied in this judgment (from vector database)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {analysis.analysis.lawsApplied.map((law: any, index: number) => (
+                  <div key={index} className="p-4 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-primary mb-1">{law.provision}</h4>
+                        <Badge variant="outline" className="text-xs mb-2">
+                          {law.act}
+                        </Badge>
+                      </div>
+                      <Badge className="bg-blue-600 text-white">
+                        {law.section}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                      {law.fullText.length > 300 ? `${law.fullText.substring(0, 300)}...` : law.fullText}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+                      <Scale className="h-3 w-3" />
+                      <span className="font-medium">{law.relevance}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -411,14 +450,13 @@ export default function Analysis() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-primary" />
-                  Legal Issues Identified
-                </CardTitle>
-              </CardHeader>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-primary" />
+                Legal Issues Identified
+              </CardTitle>
+            </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {analysis.analysis.legalIssues.map((issue, index) => (
@@ -448,7 +486,6 @@ export default function Analysis() {
                 </ul>
               </CardContent>
             </Card>
-          </div>
 
           {analysis.analysis.externalPrecedents && analysis.analysis.externalPrecedents.length > 0 && (
             <Card>
