@@ -1,6 +1,8 @@
 import { ragService } from "./services/ragService";
 import { aiService } from "./services/aiService";
 import { indiaKanoonService } from "./services/indiaKanoonService";
+import { initializeDraftProcessor } from "./services/draftProcessor";
+import { initializeDraftGenerator } from "./services/draftGenerator";
 
 /**
  * Initialize all RAG and AI services
@@ -13,6 +15,17 @@ export async function initializeRAGServices(): Promise<void> {
     console.log("📡 Connecting to Pinecone vector database...");
     await ragService.initialize();
     console.log("✅ RAG service initialized (check logs for configuration status)");
+    
+    // Initialize Draft Processing services
+    try {
+      console.log("📄 Initializing Draft Processing services...");
+      const draftProcessor = await initializeDraftProcessor();
+      await initializeDraftGenerator(draftProcessor);
+      console.log("✅ Draft generation services initialized (using Gemini AI & legal-drafts index)");
+    } catch (error: any) {
+      console.log("⚠️  Draft services not fully configured - some features may be limited");
+      console.log(`   💡 ${error.message || 'Ensure PINECONE_API_KEY and GEMINI_API_KEY are set'}`);
+    }
     
     // Test AI service
     try {

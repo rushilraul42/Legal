@@ -8,7 +8,9 @@
     "build": "esbuild src/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "process-drafts": "tsx src/scripts/processDrafts.ts",
+    "test-drafts": "tsx src/scripts/testDraftGeneration.ts"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",

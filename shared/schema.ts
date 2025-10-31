@@ -122,9 +122,77 @@ export const savedSearchSchema = z.object({
   id: z.string(),
   userId: z.string(),
   query: z.string(),
-  filters: z.record(z.any()).optional(),
+  filters: z.record(z.string(), z.any()).optional(),
   savedAt: z.string(),
   name: z.string(),
 });
 
 export type SavedSearch = z.infer<typeof savedSearchSchema>;
+
+// Draft Document schemas
+export const draftDocumentSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  content: z.string(),
+  draftType: z.string().optional(),
+  metadata: z.object({
+    parties: z.array(z.string()).optional(),
+    court: z.string().optional(),
+    dateCreated: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }).optional(),
+  uploadedAt: z.string(),
+});
+
+export type DraftDocument = z.infer<typeof draftDocumentSchema>;
+
+// Draft Generation Request schema
+export const draftGenerationRequestSchema = z.object({
+  prompt: z.string().min(10, "Prompt must be at least 10 characters"),
+  draftType: z.string().optional(),
+  contextDocuments: z.array(z.string()).optional(), // Array of document IDs
+  additionalContext: z.object({
+    parties: z.array(z.string()).optional(),
+    court: z.string().optional(),
+    specificClauses: z.array(z.string()).optional(),
+    tone: z.enum(["formal", "persuasive", "neutral"]).optional(),
+  }).optional(),
+});
+
+export type DraftGenerationRequest = z.infer<typeof draftGenerationRequestSchema>;
+
+// Draft Generation Response schema
+export const draftGenerationResponseSchema = z.object({
+  id: z.string(),
+  draft: z.string(),
+  metadata: z.object({
+    generatedAt: z.string(),
+    model: z.string(),
+    tokensUsed: z.number().optional(),
+    processingTime: z.string(),
+  }),
+  references: z.array(z.object({
+    filename: z.string(),
+    relevanceScore: z.number(),
+    sections: z.array(z.string()).optional(),
+  })),
+  suggestions: z.array(z.string()).optional(),
+});
+
+export type DraftGenerationResponse = z.infer<typeof draftGenerationResponseSchema>;
+
+// Draft Search Result schema
+export const draftSearchResultSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  excerpt: z.string(),
+  relevanceScore: z.number(),
+  metadata: z.object({
+    draftType: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }).optional(),
+});
+
+export type DraftSearchResult = z.infer<typeof draftSearchResultSchema>;

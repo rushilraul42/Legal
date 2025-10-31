@@ -276,6 +276,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Draft Generation endpoints
+  app.post("/api/drafts/generate", async (req, res) => {
+    try {
+      const { getDraftGenerator } = await import("./services/draftGenerator");
+      const draftGenerator = getDraftGenerator();
+      
+      const request = req.body;
+      
+      // Validate request
+      if (!request.prompt || request.prompt.length < 10) {
+        return res.status(400).json({ 
+          error: "Prompt must be at least 10 characters long" 
+        });
+      }
+      
+      const result = await draftGenerator.generateDraft(request);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Draft generation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/drafts/refine", async (req, res) => {
+    try {
+      const { getDraftGenerator } = await import("./services/draftGenerator");
+      const draftGenerator = getDraftGenerator();
+      
+      const { originalDraft, refinementInstructions } = req.body;
+      
+      if (!originalDraft || !refinementInstructions) {
+        return res.status(400).json({ 
+          error: "Both originalDraft and refinementInstructions are required" 
+        });
+      }
+      
+      const refinedDraft = await draftGenerator.refineDraft(
+        originalDraft,
+        refinementInstructions
+      );
+      
+      res.json({ 
+        refinedDraft,
+        originalLength: originalDraft.length,
+        refinedLength: refinedDraft.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Draft refinement error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/drafts/compare", async (req, res) => {
+    try {
+      const { getDraftGenerator } = await import("./services/draftGenerator");
+      const draftGenerator = getDraftGenerator();
+      
+      const { draft1, draft2 } = req.body;
+      
+      if (!draft1 || !draft2) {
+        return res.status(400).json({ 
+          error: "Both draft1 and draft2 are required" 
+        });
+      }
+      
+      const comparison = await draftGenerator.compareDrafts(draft1, draft2);
+      
+      res.json({ 
+        comparison,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Draft comparison error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/drafts/extract-sections", async (req, res) => {
+    try {
+      const { getDraftGenerator } = await import("./services/draftGenerator");
+      const draftGenerator = getDraftGenerator();
+      
+      const { draft } = req.body;
+      
+      if (!draft) {
+        return res.status(400).json({ error: "Draft is required" });
+      }
+      
+      const sections = await draftGenerator.extractSections(draft);
+      
+      res.json({ 
+        sections,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Section extraction error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/drafts/upload-pdf", upload.single('file'), async (req: MulterRequest, res) => {
+    try {
+      const { getDraftProcessor } = await import("./services/draftProcessor");
+      const draftProcessor = getDraftProcessor();
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const filename = req.file.originalname;
+      const metadata = req.body.metadata ? JSON.parse(req.body.metadata) : undefined;
+      
+      // Extract text from PDF
+      const text = await draftProcessor.extractTextFromPDF(req.file.buffer);
+      
+      // Process and store in Pinecone
+      await draftProcessor.processTextContent(filename, text, metadata);
+      
+      res.json({ 
+        success: true,
+        message: `File ${filename} processed and added to knowledge base`,
+        filename,
+        textLength: text.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("PDF upload error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/drafts/search", async (req, res) => {
+    try {
+      const { getDraftProcessor } = await import("./services/draftProcessor");
+      const draftProcessor = getDraftProcessor();
+      
+      const query = req.query.q as string || "";
+      const topK = parseInt(req.query.topK as string) || 5;
+      
+      if (!query) {
+        return res.status(400).json({ error: "Query parameter 'q' is required" });
+      }
+      
+      const results = await draftProcessor.searchSimilarDrafts(query, topK);
+      
+      res.json({ 
+        query,
+        results,
+        totalFound: results.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Draft search error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/drafts/process-folder", async (req, res) => {
+    try {
+      const { getDraftProcessor } = await import("./services/draftProcessor");
+      const draftProcessor = getDraftProcessor();
+      
+      const { folderPath } = req.body;
+      
+      if (!folderPath) {
+        return res.status(400).json({ error: "folderPath is required" });
+      }
+      
+      await draftProcessor.processDraftsFolder(folderPath);
+      
+      res.json({ 
+        success: true,
+        message: `Successfully processed all PDFs in ${folderPath}`,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Folder processing error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/drafts/stats", async (req, res) => {
+    try {
+      const { getDraftProcessor } = await import("./services/draftProcessor");
+      const draftProcessor = getDraftProcessor();
+      
+      const stats = await draftProcessor.getStats();
+      
+      res.json({ 
+        stats,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Stats error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // India Kanoon integration endpoints
   app.get("/api/india-kanoon/search", async (req, res) => {
     try {
