@@ -52,7 +52,8 @@ export default function LegalDraft() {
 
   const generateDraftMutation = useMutation({
     mutationFn: async (request: DraftGenerationRequest) => {
-      const response = await fetch("http://localhost:3000/api/drafts/generate", {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+      const response = await fetch(`${apiBaseUrl}/api/drafts/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(request),
