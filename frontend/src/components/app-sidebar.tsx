@@ -6,6 +6,7 @@ import {
   Database,
   BookOpen,
   Settings,
+  PenTool,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -39,6 +40,11 @@ const mainItems = [
     title: "Judgment Analysis",
     url: "/analysis",
     icon: FileText,
+  },
+  {
+    title: "Legal Draft",
+    url: "/legal-draft",
+    icon: PenTool,
   },
   {
     title: "Vector Database",
