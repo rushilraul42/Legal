@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
+import { BackgroundTasksIndicator } from "@/components/background-tasks-indicator";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
@@ -103,10 +105,13 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
         <AuthProvider>
-          <TooltipProvider>
-            <Router />
-            <Toaster />
-          </TooltipProvider>
+          <BackgroundTasksProvider>
+            <TooltipProvider>
+              <Router />
+              <BackgroundTasksIndicator />
+              <Toaster />
+            </TooltipProvider>
+          </BackgroundTasksProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

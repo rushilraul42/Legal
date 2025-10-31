@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Download, Loader2, AlertCircle, CheckCircle, Sparkles, FileDown } from "lucide-react";
+import { FileText, Download, Loader2, AlertCircle, CheckCircle, Sparkles, FileDown, Clock, Copy, Edit2, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useBackgroundTasks, DraftTask } from "@/contexts/BackgroundTasksContext";
+
+// Example draft templates
+const EXAMPLE_TEMPLATES = [
+  {
+    name: "Residential Rental Agreement",
+    draftType: "agreement",
+    prompt: "Create a residential rental agreement for a property in Mumbai. Landlord: Mr. Rajesh Sharma, Tenant: Ms. Priya Patel. Property: 2BHK Flat at Andheri West. Monthly rent: Rs. 25,000. Security deposit: Rs. 50,000. Lease period: 11 months starting from 1st January 2024. Include standard clauses for maintenance, utilities, and termination.",
+    parties: "Mr. Rajesh Sharma (Landlord), Ms. Priya Patel (Tenant)",
+    court: "Mumbai",
+    specificClauses: "Maintenance responsibilities\nUtility payment terms\nTermination conditions\nNotice period of 2 months",
+    tone: "formal" as const,
+  },
+  {
+    name: "Legal Notice - Cheque Bouncing",
+    draftType: "notice",
+    prompt: "Draft a legal notice under Section 138 of the Negotiable Instruments Act for a dishonored cheque. Payee: ABC Enterprises Ltd., Drawer: XYZ Trading Co. Cheque No: 123456, Amount: Rs. 5,00,000, Bank: HDFC Bank, Reason for dishonor: Insufficient funds. Date of dishonor: 15th October 2023. Demand payment within 15 days.",
+    parties: "ABC Enterprises Ltd. (Payee), XYZ Trading Co. (Drawer)",
+    court: "Delhi District Court",
+    specificClauses: "Section 138 NI Act reference\nDemand for payment\n15 days notice period\nLegal consequences warning",
+    tone: "formal" as const,
+  },
+  {
+    name: "Divorce Petition",
+    draftType: "petition",
+    prompt: "Prepare a divorce petition under Section 13 of the Hindu Marriage Act, 1955 on grounds of cruelty and desertion. Petitioner: Mrs. Anjali Mehta, Respondent: Mr. Vikram Mehta. Marriage date: 5th June 2015. Separation since: March 2022. Include details of mental cruelty, lack of maintenance, and 2-year desertion. One minor child custody sought by petitioner.",
+    parties: "Mrs. Anjali Mehta (Petitioner), Mr. Vikram Mehta (Respondent)",
+    court: "Family Court, Bangalore",
+    specificClauses: "Grounds of cruelty\nDesertion for 2+ years\nChild custody claim\nMaintenance demand\nProperty settlement",
+    tone: "formal" as const,
+  },
+  {
+    name: "Bail Application",
+    draftType: "application",
+    prompt: "Draft a bail application under Section 439 CrPC for a person accused under Section 323 IPC (causing hurt). Applicant: Mr. Suresh Kumar, Case: FIR No. 234/2023, Police Station: Koramangala. Accused is first-time offender, sole breadwinner of family, willing to cooperate with investigation. No criminal antecedents. Ready to furnish bail bond and surety.",
+    parties: "Mr. Suresh Kumar (Applicant), State of Karnataka (Respondent)",
+    court: "Sessions Court, Bangalore",
+    specificClauses: "No criminal record\nWillingness to cooperate\nFamily dependency\nBail bond surety offer\nNo flight risk",
+    tone: "persuasive" as const,
+  },
+  {
+    name: "Consumer Complaint - Defective Product",
+    draftType: "petition",
+    prompt: "File a consumer complaint for a defective refrigerator. Complainant: Mr. Ramesh Gupta, Opposite Party: ElectroMart Pvt Ltd. Product: Samsung Refrigerator Model RF-500, Purchase date: 10th August 2023, Price: Rs. 45,000. Product stopped working within 3 months, company refusing replacement despite warranty. Seeking replacement or refund with compensation for mental harassment.",
+    parties: "Mr. Ramesh Gupta (Complainant), ElectroMart Pvt Ltd (Opposite Party)",
+    court: "District Consumer Forum, Pune",
+    specificClauses: "Defect within warranty period\nRefusal to honor warranty\nDemand for replacement or refund\nCompensation for harassment\nLegal costs",
+    tone: "persuasive" as const,
+  },
+];
 
 interface DraftGenerationRequest {
   prompt: string;
@@ -42,6 +92,7 @@ interface DraftGenerationResponse {
 
 export default function LegalDraft() {
   const { toast } = useToast();
+  const { tasks, addTask, updateTask, getTask } = useBackgroundTasks();
   const [prompt, setPrompt] = useState("");
   const [draftType, setDraftType] = useState<string>("");
   const [parties, setParties] = useState("");
@@ -49,10 +100,80 @@ export default function LegalDraft() {
   const [specificClauses, setSpecificClauses] = useState("");
   const [tone, setTone] = useState<"formal" | "persuasive" | "neutral">("formal");
   const [generatedDraft, setGeneratedDraft] = useState<DraftGenerationResponse | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedDraft, setEditedDraft] = useState("");
+
+  // Check for completed tasks on mount and when tasks update
+  useEffect(() => {
+    if (currentTaskId) {
+      const task = getTask(currentTaskId);
+      if (task && task.status === 'completed' && task.result) {
+        setGeneratedDraft(task.result);
+        setEditedDraft(task.result.draft);
+        setCurrentTaskId(null);
+      }
+    } else {
+      // Check if there's a recently completed draft task
+      const completedDraftTask = tasks
+        .filter((t): t is DraftTask => t.type === 'draft' && t.status === 'completed' && !!t.result)
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
+      
+      if (completedDraftTask && !generatedDraft) {
+        setGeneratedDraft(completedDraftTask.result);
+        setEditedDraft(completedDraftTask.result.draft);
+      }
+    }
+  }, [tasks, currentTaskId, getTask, generatedDraft]);
+
+  const loadTemplate = (template: typeof EXAMPLE_TEMPLATES[0]) => {
+    setPrompt(template.prompt);
+    setDraftType(template.draftType);
+    setParties(template.parties);
+    setCourt(template.court);
+    setSpecificClauses(template.specificClauses);
+    setTone(template.tone);
+    toast({
+      title: "Template Loaded",
+      description: `"${template.name}" template has been loaded. You can modify and generate.`,
+    });
+  };
+
+  const handleEditDraft = () => {
+    if (generatedDraft) {
+      setEditedDraft(generatedDraft.draft);
+      setIsEditing(true);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    if (generatedDraft) {
+      setGeneratedDraft({
+        ...generatedDraft,
+        draft: editedDraft,
+      });
+      setIsEditing(false);
+      toast({
+        title: "Changes Saved",
+        description: "Your edits have been saved to the draft.",
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (generatedDraft) {
+      setEditedDraft(generatedDraft.draft);
+    }
+    setIsEditing(false);
+  };
 
   const generateDraftMutation = useMutation({
-    mutationFn: async (request: DraftGenerationRequest) => {
+    mutationFn: async (request: DraftGenerationRequest & { taskId: string }) => {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+      
+      // Update task to processing
+      updateTask(request.taskId, { status: 'processing' });
+      
       const response = await fetch(`${apiBaseUrl}/api/drafts/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,16 +185,25 @@ export default function LegalDraft() {
         throw new Error(error.error || "Failed to generate draft");
       }
 
-      return response.json();
+      return { data: await response.json(), taskId: request.taskId };
     },
-    onSuccess: (data: DraftGenerationResponse) => {
+    onSuccess: ({ data, taskId }: { data: DraftGenerationResponse; taskId: string }) => {
       setGeneratedDraft(data);
+      setEditedDraft(data.draft);
+      updateTask(taskId, {
+        status: 'completed',
+        result: data,
+      });
       toast({
         title: "Draft Generated Successfully",
         description: `Generated in ${data.metadata.processingTime}`,
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      updateTask(variables.taskId, {
+        status: 'error',
+        error: error.message,
+      });
       toast({
         title: "Generation Failed",
         description: error.message,
@@ -103,11 +233,24 @@ export default function LegalDraft() {
       },
     };
 
-    generateDraftMutation.mutate(request);
+    // Create background task
+    const taskId = addTask({
+      type: 'draft',
+      prompt: prompt,
+      draftType: draftType || undefined,
+    });
+    
+    setCurrentTaskId(taskId);
+    
+    // Start generation with task ID
+    generateDraftMutation.mutate({ ...request, taskId });
   };
 
   const downloadAsWord = () => {
     if (!generatedDraft) return;
+
+    // Use edited draft if available, otherwise use original
+    const draftContent = isEditing ? editedDraft : (editedDraft || generatedDraft.draft);
 
     // Create a simple HTML document that Word can open
     // Only include the draft content, no metadata
@@ -136,7 +279,7 @@ export default function LegalDraft() {
         </style>
       </head>
       <body>
-        ${generatedDraft.draft.split('\n').map(line => {
+        ${draftContent.split('\n').map(line => {
           if (line.trim().startsWith('#')) {
             return `<h1>${line.replace(/^#+\s*/, '')}</h1>`;
           } else if (line.trim()) {
@@ -179,6 +322,41 @@ export default function LegalDraft() {
           </p>
         </div>
       </div>
+
+      {/* Example Templates Section */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Copy className="h-5 w-5" />
+            Quick Start Templates
+          </CardTitle>
+          <CardDescription>
+            Click on any template to prefill the form and get started quickly
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {EXAMPLE_TEMPLATES.map((template, index) => (
+              <Button
+                key={index}
+                variant="outline"
+                className="h-auto py-3 px-4 flex flex-col items-start gap-1 hover:bg-primary/5 w-full overflow-hidden"
+                onClick={() => loadTemplate(template)}
+              >
+                <div className="font-semibold text-sm w-full truncate text-left">
+                  {template.name}
+                </div>
+                <div className="text-xs text-muted-foreground text-left line-clamp-2 w-full overflow-hidden">
+                  {template.prompt.substring(0, 100)}...
+                </div>
+                <Badge variant="secondary" className="text-xs mt-1">
+                  {template.draftType}
+                </Badge>
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Input Section */}
@@ -330,13 +508,35 @@ export default function LegalDraft() {
                     <CheckCircle className="h-5 w-5 text-green-500" />
                     Generated Draft
                   </CardTitle>
-                  <Button onClick={downloadAsWord} variant="outline" size="sm">
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Download Word
-                  </Button>
+                  <div className="flex gap-2">
+                    {!isEditing ? (
+                      <>
+                        <Button onClick={handleEditDraft} variant="outline" size="sm">
+                          <Edit2 className="mr-2 h-4 w-4" />
+                          Edit Draft
+                        </Button>
+                        <Button onClick={downloadAsWord} variant="outline" size="sm">
+                          <FileDown className="mr-2 h-4 w-4" />
+                          Download Word
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button onClick={handleSaveEdit} variant="default" size="sm">
+                          <Save className="mr-2 h-4 w-4" />
+                          Save Changes
+                        </Button>
+                        <Button onClick={handleCancelEdit} variant="outline" size="sm">
+                          <X className="mr-2 h-4 w-4" />
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <CardDescription>
                   Generated in {generatedDraft.metadata.processingTime}
+                  {isEditing && <span className="ml-2 text-orange-500">• Editing mode</span>}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -348,13 +548,27 @@ export default function LegalDraft() {
                   </TabsList>
 
                   <TabsContent value="draft" className="space-y-4">
-                    <div className="bg-muted rounded-lg p-4 max-h-[600px] overflow-auto">
-                      <pre className="whitespace-pre-wrap font-serif text-sm leading-relaxed">
-                        {generatedDraft.draft}
-                      </pre>
-                    </div>
-
-                    
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="editDraft">Edit your draft</Label>
+                        <Textarea
+                          id="editDraft"
+                          value={editedDraft}
+                          onChange={(e) => setEditedDraft(e.target.value)}
+                          rows={25}
+                          className="font-serif text-sm leading-relaxed resize-none"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Make your changes above. Click "Save Changes" when done.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="bg-muted rounded-lg p-4 max-h-[600px] overflow-auto">
+                        <pre className="whitespace-pre-wrap font-serif text-sm leading-relaxed">
+                          {editedDraft || generatedDraft.draft}
+                        </pre>
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="references" className="space-y-4">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,11 +15,13 @@ import {
   ExternalLink,
   Zap,
   BookOpen,
+  Clock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiService, type AnalysisResult } from "@/lib/apiService";
 import type { JudgmentAnalysis } from "@shared/schema";
 import { getMockJudgmentAnalysis } from "@/lib/mock-data";
+import { useBackgroundTasks, AnalysisTask } from "@/contexts/BackgroundTasksContext";
 
 export default function Analysis() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -28,7 +30,42 @@ export default function Analysis() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [analysisStage, setAnalysisStage] = useState<string>("");
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { tasks, addTask, updateTask, getTask } = useBackgroundTasks();
+
+  // Monitor task completion
+  useEffect(() => {
+    if (currentTaskId) {
+      const task = getTask(currentTaskId);
+      if (task && task.status === 'completed' && task.result) {
+        setAnalysis(task.result);
+        setIsAnalyzing(false);
+        setProgress(100);
+        setAnalysisStage("Analysis complete!");
+        setCurrentTaskId(null);
+      } else if (task && task.status === 'error') {
+        setIsAnalyzing(false);
+        setProgress(0);
+        setAnalysisStage("");
+        setCurrentTaskId(null);
+      } else if (task && task.status === 'processing') {
+        setIsAnalyzing(true);
+      }
+    } else {
+      // Check if there's a recently completed analysis task when returning to page
+      const completedAnalysisTask = tasks
+        .filter((t) => t.type === 'analysis' && t.status === 'completed' && !!t.result)
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0];
+      
+      if (completedAnalysisTask && !analysis) {
+        setAnalysis(completedAnalysisTask.result);
+        setIsAnalyzing(false);
+        setProgress(100);
+        setAnalysisStage("Analysis complete!");
+      }
+    }
+  }, [tasks, currentTaskId, getTask, analysis]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -68,83 +105,103 @@ export default function Analysis() {
   const handleAnalyze = async () => {
     if (!selectedFile) return;
 
+    // Create background task
+    const taskId = addTask({
+      type: 'analysis',
+      documentName: selectedFile.name,
+    });
+    
+    setCurrentTaskId(taskId);
     setIsAnalyzing(true);
     setProgress(0);
     setAnalysisStage("Uploading document...");
 
-    try {
-      // Simulate progress updates
-      const progressStages = [
-        { progress: 20, stage: "Processing document..." },
-        { progress: 40, stage: "Extracting legal content..." },
-        { progress: 60, stage: "Searching legal database..." },
-        { progress: 80, stage: "Analyzing with AI..." },
-        { progress: 95, stage: "Finalizing results..." }
-      ];
-
-      // Update progress gradually
-      for (const { progress, stage } of progressStages) {
-        setProgress(progress);
-        setAnalysisStage(stage);
-        await new Promise(resolve => setTimeout(resolve, 800));
-      }
-
+    // Start background processing
+    (async () => {
       try {
-        // Call the RAG API
-        const result = await apiService.analyzeDocument(selectedFile);
-        setAnalysis(result);
-        setProgress(100);
-        setAnalysisStage("Analysis complete!");
-        
-        toast({
-          title: "Analysis Complete",
-          description: `Document analyzed with ${Math.round((result.confidence || 0) * 100)}% confidence.`,
-        });
-      } catch (error: any) {
-        // Fallback to mock analysis if API fails
-        const mockAnalysis = getMockJudgmentAnalysis(selectedFile.name);
-        const ragAnalysis: AnalysisResult = {
-          ...mockAnalysis,
-          confidence: 0.75,
-          processingTime: "3 seconds",
-          analysis: {
-            ...mockAnalysis.analysis,
-            sentiment: mockAnalysis.analysis.sentiment || "Balanced legal analysis"
-          }
-        };
-        setAnalysis(ragAnalysis);
-        
-        toast({
-          title: "Analysis Complete (Offline Mode)",
-          description: error.message || "Using offline analysis. Connect to backend for enhanced features.",
-        });
-      }
-    } catch (error: any) {
-      console.error("Analysis error:", error);
-      
-      // Fallback to mock data
-      const mockAnalysis = getMockJudgmentAnalysis(selectedFile.name);
-      const ragAnalysis: AnalysisResult = {
-        ...mockAnalysis,
-        confidence: 0.65,
-        processingTime: "offline",
-        analysis: {
-          ...mockAnalysis.analysis,
-          sentiment: mockAnalysis.analysis.sentiment || "Error in analysis - using fallback"
+        // Update task to processing
+        updateTask(taskId, { status: 'processing' });
+
+        // Simulate progress updates
+        const progressStages = [
+          { progress: 20, stage: "Processing document..." },
+          { progress: 40, stage: "Extracting legal content..." },
+          { progress: 60, stage: "Searching legal database..." },
+          { progress: 80, stage: "Analyzing with AI..." },
+          { progress: 95, stage: "Finalizing results..." }
+        ];
+
+        // Update progress gradually
+        for (const { progress, stage } of progressStages) {
+          setProgress(progress);
+          setAnalysisStage(stage);
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
-      };
-      setAnalysis(ragAnalysis);
-      
-      toast({
-        title: "Analysis Error",
-        description: "Using offline analysis. Please check your connection.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAnalyzing(false);
-      setProgress(0);
-      setAnalysisStage("");
-    }
+
+        try {
+          // Call the RAG API
+          const result = await apiService.analyzeDocument(selectedFile);
+          
+          // Update task with result
+          updateTask(taskId, {
+            status: 'completed',
+            result: result,
+          });
+          
+          setAnalysis(result);
+          setProgress(100);
+          setAnalysisStage("Analysis complete!");
+          
+          toast({
+            title: "Analysis Complete",
+            description: `Document analyzed with ${Math.round((result.confidence || 0) * 100)}% confidence.`,
+          });
+        } catch (error: any) {
+          // Fallback to mock analysis if API fails
+          const mockAnalysis = getMockJudgmentAnalysis(selectedFile.name);
+          const ragAnalysis: AnalysisResult = {
+            ...mockAnalysis,
+            confidence: 0.75,
+            processingTime: "3 seconds",
+            analysis: {
+              ...mockAnalysis.analysis,
+              sentiment: mockAnalysis.analysis.sentiment || "Balanced legal analysis"
+            }
+          };
+          
+          // Update task with fallback result
+          updateTask(taskId, {
+            status: 'completed',
+            result: ragAnalysis,
+          });
+          
+          setAnalysis(ragAnalysis);
+          
+          toast({
+            title: "Analysis Complete (Offline Mode)",
+            description: error.message || "Using offline analysis. Connect to backend for enhanced features.",
+          });
+        }
+      } catch (error: any) {
+        console.error("Analysis error:", error);
+        
+        // Update task with error
+        updateTask(taskId, {
+          status: 'error',
+          error: error.message || "Analysis failed",
+        });
+        
+        toast({
+          title: "Analysis Error",
+          description: "Failed to analyze document. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsAnalyzing(false);
+        setProgress(0);
+        setAnalysisStage("");
+      }
+    })();
   };
 
   const copyToClipboard = (text: string) => {
