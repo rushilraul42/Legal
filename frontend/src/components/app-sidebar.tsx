@@ -3,7 +3,6 @@ import {
   Scale,
   Search,
   FileText,
-  Database,
   BookOpen,
   Settings,
   PenTool,
@@ -45,11 +44,6 @@ const mainItems = [
     title: "Legal Draft",
     url: "/legal-draft",
     icon: PenTool,
-  },
-  {
-    title: "Vector Database",
-    url: "/vector-search",
-    icon: Database,
   },
 ];
 

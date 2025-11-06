@@ -392,11 +392,6 @@ export default function Analysis() {
               <h2 className="text-2xl font-semibold mb-1">Analysis Results</h2>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span>{analysis.documentName}</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Zap className="h-3 w-3" />
-                  {Math.round((analysis.confidence || 0) * 100)}% confidence
-                </span>
                 {analysis.processingTime && (
                   <>
                     <span>•</span>
