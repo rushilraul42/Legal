@@ -32,7 +32,7 @@ export default function Analysis() {
   const [analysisStage, setAnalysisStage] = useState<string>("");
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const { toast } = useToast();
-  const { tasks, addTask, updateTask, getTask } = useBackgroundTasks();
+  const { tasks, addTask, updateTask, getTask, removeTask } = useBackgroundTasks();
 
   // Monitor task completion
   useEffect(() => {
@@ -208,8 +208,24 @@ export default function Analysis() {
     navigator.clipboard.writeText(text);
     toast({
       title: "Copied to Clipboard",
-      description: "Content has been copied to your clipboard.",
+      description: "Text copied successfully",
     });
+  };
+
+  const handleNewAnalysis = () => {
+    // Clear all completed analysis tasks to prevent auto-restoration
+    const completedAnalysisTasks = tasks.filter(
+      (t) => t.type === 'analysis' && t.status === 'completed'
+    );
+    completedAnalysisTasks.forEach((task) => removeTask(task.id));
+    
+    // Reset all state
+    setAnalysis(null);
+    setSelectedFile(null);
+    setIsAnalyzing(false);
+    setProgress(0);
+    setAnalysisStage("");
+    setCurrentTaskId(null);
   };
 
   return (
@@ -390,7 +406,7 @@ export default function Analysis() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setAnalysis(null)} data-testid="button-new-analysis">
+              <Button variant="outline" onClick={handleNewAnalysis} data-testid="button-new-analysis">
                 New Analysis
               </Button>
               <Button variant="outline">

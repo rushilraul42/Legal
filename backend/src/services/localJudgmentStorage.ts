@@ -34,29 +34,17 @@ export class LocalJudgmentStorageService {
   private db: any; // Database instance
   
   constructor() {
-    // Initialize database connection
-    // Could be SQLite (for local) or PostgreSQL (for production)
   }
-  
-  /**
-   * Store a judgment locally
-   */
+
   async storeJudgment(judgment: LocalJudgment): Promise<void> {
     try {
-      // 1. Store judgment text and metadata
-      // 2. Generate vector embedding using OpenAI/Google AI
-      // 3. Store embedding in vector database (Pinecone)
-      // 4. Index for full-text search
       
       console.log(`Stored judgment: ${judgment.caseNumber}`);
     } catch (error) {
       console.error('Error storing judgment:', error);
     }
   }
-  
-  /**
-   * Bulk import judgments from CSV/JSON
-   */
+
   async bulkImport(judgments: LocalJudgment[]): Promise<number> {
     let imported = 0;
     
@@ -71,10 +59,7 @@ export class LocalJudgmentStorageService {
     
     return imported;
   }
-  
-  /**
-   * Search stored judgments
-   */
+
   async searchLocal(query: string, filters?: {
     court?: string;
     dateFrom?: string;
@@ -90,9 +75,6 @@ export class LocalJudgmentStorageService {
     }
   }
   
-  /**
-   * Get judgment by ID
-   */
   async getById(id: string): Promise<LocalJudgment | null> {
     try {
       // Fetch from local database
@@ -103,29 +85,18 @@ export class LocalJudgmentStorageService {
     }
   }
   
-  /**
-   * Get related judgments using vector similarity
-   */
   async getRelatedJudgments(judgmentId: string, limit: number = 5): Promise<LocalJudgment[]> {
     try {
-      // Use vector similarity search to find related cases
       return [];
     } catch (error) {
       console.error('Error finding related judgments:', error);
       return [];
     }
   }
-  
-  /**
-   * Download and store Supreme Court judgments (legal, from official source)
-   */
+ 
   async downloadSupremeCourtJudgments(year: number): Promise<number> {
     try {
       console.log(`Downloading SC judgments from ${year}...`);
-      
-      // Supreme Court provides bulk downloads
-      // Download PDFs and extract text using pdf-parse
-      // Store in local database
       
       return 0;
     } catch (error) {

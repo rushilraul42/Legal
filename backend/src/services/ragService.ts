@@ -310,7 +310,6 @@ export class RAGService {
    * Determine the relevance/application context of a law in the judgment
    */
   private determineRelevance(citation: string, judgmentText: string): string {
-    // Find the context around the citation
     const citationIndex = judgmentText.toLowerCase().indexOf(citation.toLowerCase());
     if (citationIndex === -1) return "Referenced in judgment";
 
@@ -318,7 +317,6 @@ export class RAGService {
     const contextEnd = Math.min(judgmentText.length, citationIndex + 150);
     const context = judgmentText.substring(contextStart, contextEnd);
 
-    // Determine relevance based on context
     if (context.includes("held that") || context.includes("held:")) {
       return "Applied in ratio decidendi (binding precedent)";
     } else if (context.includes("violation") || context.includes("contravention")) {
@@ -334,9 +332,6 @@ export class RAGService {
     }
   }
 
-  /**
-   * Use AI to identify additional laws applied that regex might have missed
-   */
   private async identifyAppliedLawsWithAI(
     judgmentText: string,
     relevantLaws: RAGSearchResult[]
